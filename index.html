@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="color-scheme" content="dark" />
+    <title>厕纸抽卡 · M1</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div class="vignette"></div>
+
+    <header class="hud">
+      <div class="hud__count"><b data-count>0 / 10</b><span>段</span></div>
+      <div class="hud__meter"><i data-meter></i></div>
+      <p class="hud__hint" data-hint>按住画面，向下拖动</p>
+    </header>
+
+    <aside class="lab" data-lab></aside>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
