@@ -4,10 +4,12 @@
 //
 //   node tools/screenshots.mjs                       the four-step drag script
 //   node tools/screenshots.mjs --progress 0.081 --viewport 1920x911 --dpr 2 \
-//        --crop paper --name join
+//        --crop paper --desc join
 //
 // `--crop paper` asks the page where the paper is and cuts to that box, padded.
 // The clip is in CSS pixels; the PNG it writes is that box times `--dpr`.
+// Each file is named `<timestamp>_<desc>.png`, the stamp taken per shot, so a
+// folder of shots sorts in capture order and a rerun never overwrites the last.
 import { mkdir } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
 import { chromium } from 'playwright'
@@ -22,7 +24,7 @@ const { values: options } = parseArgs({
     progress: { type: 'string' },
     hide: { type: 'string' },
     crop: { type: 'string', default: 'full' },
-    name: { type: 'string', default: 'frame' },
+    desc: { type: 'string', default: 'frame' },
   },
 })
 
@@ -59,7 +61,7 @@ try {
     // A settled scene draws the same pixels every time, so one frame is enough.
     await page.waitForTimeout(300)
     console.log(JSON.stringify(await page.evaluate(() => window.debug.read())))
-    await capture(options.name)
+    await capture(options.desc)
   }
 } finally {
   await browser.close()
@@ -73,7 +75,7 @@ async function runDragScript() {
   const halfPullY = start.y + height * 0.5
   const fullPullY = start.y + height
 
-  await capture('00-rest')
+  await capture('rest')
 
   // Hold the button down so the frame shows the paper mid-drag, not settled.
   await page.mouse.move(start.x, start.y)
@@ -82,23 +84,32 @@ async function runDragScript() {
   // Steps land on rounded pixels, so finish on the exact point.
   await page.mouse.move(start.x, halfPullY)
   await page.waitForTimeout(500)
-  await capture('01-half')
+  await capture('half')
 
   await page.mouse.move(start.x, fullPullY, { steps: 30 })
   await page.waitForTimeout(250)
-  await capture('02-full')
+  await capture('full')
 
   await page.mouse.up()
   await page.waitForTimeout(800)
-  await capture('03-released')
+  await capture('released')
 }
 
-async function capture(name) {
-  const path = `${OUTPUT_DIR}/${name}.png`
+async function capture(desc) {
+  const path = `${OUTPUT_DIR}/${timestamp()}_${desc}.png`
   const clip = options.crop === 'paper' ? await paperClip() : null
 
   await page.screenshot(clip ? { path, clip } : { path })
   console.log(`wrote ${path}`)
+}
+
+/** Second granularity, no colons: a name a filesystem takes and a sort reads. */
+function timestamp() {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `${date}-${time}`
 }
 
 /** Padded and clamped, so the paper's own edges stay inside the frame. */
