@@ -4,7 +4,7 @@ import { trackPull } from './input/drag'
 import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
 import { createProbe } from './debug/probe'
-import { params } from './params'
+import { effects, params } from './params'
 
 const canvas = query<HTMLCanvasElement>('#stage')
 const stage = createStage(canvas)
@@ -44,7 +44,7 @@ stage.onFrame((dt, time) => {
   stage.setPull(feed.progress)
 
   // Faster paper swings harder; standing paper is almost still.
-  const sway = params.sway * Math.min(1, feed.speed / 3)
+  const sway = effects.paperSway ? params.sway * Math.min(1, feed.speed / 3) : 0
   paper.setPaper({
     length: feed.length,
     sway,
@@ -56,7 +56,7 @@ stage.onFrame((dt, time) => {
   })
 
   // The tear is the one frame where the camera gets hit.
-  if (feed.torn && !wasTorn) stage.shake()
+  if (feed.torn && !wasTorn && effects.cameraShake) stage.shake()
   wasTorn = feed.torn
 
   lab.showState(probe.read())

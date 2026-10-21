@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { params } from '../params'
+import { effects, params } from '../params'
 
 /** The camera keeps its sideways angle throughout the pull. */
 const CAMERA_X = 1.05
@@ -66,11 +66,16 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
 
   // Everything is drawn into a half-float buffer first, so values past white
   // survive to the bloom pass instead of being clipped by the canvas.
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(1, 1),
+    BLOOM_STRENGTH,
+    BLOOM_RADIUS,
+    BLOOM_THRESHOLD,
+  )
+
   const composer = new EffectComposer(renderer)
   composer.addPass(new RenderPass(scene, camera))
-  composer.addPass(
-    new UnrealBloomPass(new THREE.Vector2(1, 1), BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD),
-  )
+  composer.addPass(bloom)
   composer.addPass(new OutputPass())
 
   const resize = () => {
@@ -98,6 +103,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     const elapsed = frozenTime ?? clock.elapsedTime
     renderFrame?.(dt, elapsed)
     applyCameraShake(elapsed)
+    // Kept as a pass rather than rebuilt: switching the bloom off still leaves
+    // the frame in the same buffer, so the toggle changes the halo and nothing else.
+    bloom.enabled = effects.bloom
     composer.render()
   })
 

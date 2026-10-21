@@ -1,19 +1,10 @@
 import type { Probe, SceneState } from '../debug/probe'
-import type { DragParams } from '../params'
+import { effects, type DragParams, type Effects } from '../params'
 import { RARITIES, type Rarity } from '../scene/rarity'
 
 export type Lab = {
   /** Paints the numbers the last frame was built from. Called every frame. */
   showState(state: SceneState): void
-}
-
-type NumberKnob = {
-  label: string
-  min: number
-  max: number
-  step: number
-  read: () => number
-  write: (value: number) => void
 }
 
 type ToggleKnob = {
@@ -30,12 +21,13 @@ type ChoiceKnob = {
 }
 
 /**
- * Four blocks, in the order a pull goes through them: which rarity the cut
- * wears, which parts of the prop are drawn, what the scene is doing right now,
- * then every knob that changes the pull's feel. The knobs are
- * adjustable live so two versions can be compared without reloading; the
- * readout exists so a scene can be described well enough for a script to
- * reproduce it.
+ * Five blocks, in the order a pull goes through them: which rarity the cut
+ * wears, which parts of the prop are drawn, which effects answer the pull, how
+ * the drag itself behaves, and what the scene is doing right now.
+ *
+ * The switches are live, so a run with an effect on and a run with it off can be
+ * compared without reloading. The readout exists so a frame can be described
+ * well enough for a script to reproduce it.
  */
 export function createLab(
   params: DragParams,
@@ -69,174 +61,28 @@ export function createLab(
   let current: SceneState | null = null
   let shown = ''
 
-  const numberKnobs: NumberKnob[] = [
-    {
-      label: '拉满所需屏数',
-      min: 0.4,
-      max: 3,
-      step: 0.1,
-      read: () => params.dragScreenHeights,
-      write: (value) => (params.dragScreenHeights = value),
-    },
-    {
-      label: '跟手刚度',
-      min: 4,
-      max: 80,
-      step: 1,
-      read: () => params.followStiffness,
-      write: (value) => (params.followStiffness = value),
-    },
-    {
-      label: '松手惯性',
-      min: 0,
-      max: 0.9,
-      step: 0.05,
-      read: () => params.momentum,
-      write: (value) => (params.momentum = value),
-    },
-    {
-      label: '一格长度',
-      min: 0.4,
-      max: 1.2,
-      step: 0.02,
-      read: () => params.segmentLength,
-      write: (value) => (params.segmentLength = value),
-    },
-    {
-      label: '最多段数',
-      min: 1,
-      max: 20,
-      step: 1,
-      read: () => params.maxSegments,
-      write: (value) => (params.maxSegments = value),
-    },
-    {
-      label: '拉满进度',
-      min: 0.5,
-      max: 1,
-      step: 0.01,
-      read: () => params.maxProgress,
-      write: (value) => (params.maxProgress = value),
-    },
-    {
-      label: '摆动幅度',
-      min: 0,
-      max: 0.08,
-      step: 0.002,
-      read: () => params.sway,
-      write: (value) => (params.sway = value),
-    },
-    {
-      label: '蓄力行程',
-      min: 0.05,
-      max: 1,
-      step: 0.05,
-      read: () => params.strainTravel,
-      write: (value) => (params.strainTravel = value),
-    },
-    {
-      label: '抖动幅度',
-      min: 0,
-      max: 0.04,
-      step: 0.002,
-      read: () => params.shake,
-      write: (value) => (params.shake = value),
-    },
-    {
-      label: '撕裂锯齿',
-      min: 0.005,
-      max: 0.08,
-      step: 0.005,
-      read: () => params.tearJag,
-      write: (value) => (params.tearJag = value),
-    },
-    {
-      label: '撕裂下落',
-      min: 0,
-      max: 1.5,
-      step: 0.05,
-      read: () => params.tearDrop,
-      write: (value) => (params.tearDrop = value),
-    },
-    {
-      label: '撕裂摆角',
-      min: 0,
-      max: 0.12,
-      step: 0.005,
-      read: () => params.tearSwing,
-      write: (value) => (params.tearSwing = value),
-    },
-    {
-      label: '冲击用时',
-      min: 0.1,
-      max: 1,
-      step: 0.05,
-      read: () => params.impactSeconds,
-      write: (value) => (params.impactSeconds = value),
-    },
-    {
-      label: '镜头震动',
-      min: 0,
-      max: 1,
-      step: 0.02,
-      read: () => params.cameraShake,
-      write: (value) => (params.cameraShake = value),
-    },
-    {
-      label: '镜头滚转',
-      min: 0,
-      max: 0.15,
-      step: 0.005,
-      read: () => params.cameraShakeRoll,
-      write: (value) => (params.cameraShakeRoll = value),
-    },
-    {
-      label: '镜头距离',
-      min: 3,
-      max: 7,
-      step: 0.05,
-      read: () => params.cameraDistance,
-      write: (value) => (params.cameraDistance = value),
-    },
-    {
-      label: '起始高度',
-      min: 0,
-      max: 3,
-      step: 0.05,
-      read: () => params.cameraStartY,
-      write: (value) => (params.cameraStartY = value),
-    },
-    {
-      label: '起始看向',
-      min: 0,
-      max: 3,
-      step: 0.05,
-      read: () => params.cameraStartLookY,
-      write: (value) => (params.cameraStartLookY = value),
-    },
-    {
-      label: '结束高度',
-      min: -0.5,
-      max: 3,
-      step: 0.05,
-      read: () => params.cameraEndY,
-      write: (value) => (params.cameraEndY = value),
-    },
-    {
-      label: '结束看向',
-      min: -1,
-      max: 3,
-      step: 0.05,
-      read: () => params.cameraEndLookY,
-      write: (value) => (params.cameraEndLookY = value),
-    },
+  /**
+   * Each switch takes one effect out and leaves the scene whole, so what it was
+   * worth is judged by the difference. They run from the light outwards: the two
+   * that shape the charge, then what the seam throws, then the paper and the
+   * camera.
+   */
+  const effectToggles: ToggleKnob[] = [
+    createEffectToggle('蓄力光晕', 'bloom'),
+    createEffectToggle('压暗', 'shadow'),
+    createEffectToggle('粒子特效', 'particles'),
+    createEffectToggle('纸巾抖动', 'paperTremble'),
+    createEffectToggle('镜头震动', 'cameraShake'),
+    createEffectToggle('撕裂掉落', 'tearFall'),
+    createEffectToggle('纸带摆动', 'paperSway'),
   ]
 
-  const toggleKnobs: ToggleKnob[] = [
+  /** Rules of the drag rather than of the picture, so they get their own block. */
+  const feelToggles: ToggleKnob[] = [
     {
       label: '允许回卷',
       read: () => params.allowRewind,
-      write: (value) => (params.allowRewind = value),
+      write: (allowed) => (params.allowRewind = allowed),
     },
   ]
 
@@ -274,6 +120,10 @@ export function createLab(
     createChoiceRow(rarityKnob),
     createHead('显示'),
     ...partToggles.map(createToggleRow),
+    createHead('效果'),
+    ...effectToggles.map(createToggleRow),
+    createHead('手感'),
+    ...feelToggles.map(createToggleRow),
     createHead('状态', copyButton),
     percent.row,
     strain.row,
@@ -281,9 +131,6 @@ export function createLab(
     segments.row,
     length.row,
     surface.row,
-    createHead('手感参数'),
-    ...numberKnobs.map(createNumberRow),
-    ...toggleKnobs.map(createToggleRow),
   )
 
   async function copyState() {
@@ -331,6 +178,7 @@ export function createLab(
  */
 function describeState(state: SceneState): string {
   const hidden = Object.entries(state.parts).flatMap(([part, shown]) => (shown ? [] : [part]))
+  const off = Object.entries(state.effects).flatMap(([effect, shown]) => (shown ? [] : [effect]))
 
   return [
     `progress=${state.progress.toFixed(3)}`,
@@ -343,10 +191,10 @@ function describeState(state: SceneState): string {
     `viewport=${state.viewport.width}x${state.viewport.height}`,
     `dpr=${state.devicePixelRatio}`,
     `hidden=${hidden.length > 0 ? hidden.join(',') : 'none'}`,
+    `off=${off.length > 0 ? off.join(',') : 'none'}`,
   ].join(' ')
 }
 
-let nextControlId = 1
 let nextChoiceName = 1
 
 function createHead(title: string, action?: HTMLElement): HTMLElement {
@@ -383,38 +231,12 @@ function createReadout(label: string): { row: HTMLElement; value: HTMLElement } 
   return { row, value }
 }
 
-function createNumberRow(knob: NumberKnob): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'lab__row'
-
-  const controlId = `lab-number-${nextControlId++}`
-
-  const label = document.createElement('label')
-  label.htmlFor = controlId
-  label.textContent = knob.label
-
-  const value = document.createElement('output')
-
-  const slider = document.createElement('input')
-  slider.type = 'range'
-  slider.id = controlId
-  slider.min = String(knob.min)
-  slider.max = String(knob.max)
-  slider.step = String(knob.step)
-  slider.value = String(knob.read())
-
-  const showCurrent = () => {
-    value.textContent = knob.read().toFixed(decimalsOf(knob.step))
+function createEffectToggle(label: string, effect: keyof Effects): ToggleKnob {
+  return {
+    label,
+    read: () => effects[effect],
+    write: (on) => (effects[effect] = on),
   }
-  showCurrent()
-
-  slider.addEventListener('input', () => {
-    knob.write(Number(slider.value))
-    showCurrent()
-  })
-
-  row.append(label, value, slider)
-  return row
 }
 
 function createToggleRow(knob: ToggleKnob): HTMLElement {
@@ -464,8 +286,4 @@ function createChoiceRow(knob: ChoiceKnob): HTMLElement {
 
   row.append(title, group)
   return row
-}
-
-function decimalsOf(step: number): number {
-  return step < 0.01 ? 3 : step < 1 ? 2 : 0
 }

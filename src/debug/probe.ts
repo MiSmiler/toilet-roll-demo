@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Feed } from '../paper/feed'
 import type { PaperParts, ToiletRoll } from '../scene/toiletRoll'
-import { params } from '../params'
+import { effects, params, type Effects } from '../params'
 import type { Rarity } from '../scene/rarity'
 
 /** Everything a frame is built from, plus the surface the frame lands on. */
@@ -24,6 +24,8 @@ export type SceneState = {
   viewport: { width: number; height: number }
   devicePixelRatio: number
   parts: PaperParts
+  /** The effect switches as the lab left them. */
+  effects: Effects
 }
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -83,6 +85,7 @@ export function createProbe({ feed, paper, camera, canvas, freezeTime }: Depende
       viewport: { width: canvas.clientWidth, height: canvas.clientHeight },
       devicePixelRatio: window.devicePixelRatio,
       parts: paper.parts(),
+      effects: { ...effects },
     }),
 
     setProgress: (progress) => feed.settle(progress),
