@@ -37,6 +37,11 @@ export type Probe = {
    * beam's colour and glow are read off it.
    */
   holdStrain(strain: number): void
+  /**
+   * Pins the scene clock so a strip of frames shares one animation phase, or
+   * lets it run again with null. A script's knob only.
+   */
+  freezeTime(at: number | null): void
   show(parts: Partial<PaperParts>): void
   /** Where the paper lands on the page, in CSS pixels — the unit a screenshot clip takes. */
   paperRect(): Rect
@@ -47,6 +52,7 @@ type Dependencies = {
   paper: ToiletRoll
   camera: THREE.Camera
   canvas: HTMLCanvasElement
+  freezeTime: (at: number | null) => void
 }
 
 declare global {
@@ -63,7 +69,7 @@ declare global {
  * A settled scene keeps its sway at zero, so the same progress redraws the very
  * same pixels — which is what makes two screenshots comparable.
  */
-export function createProbe({ feed, paper, camera, canvas }: Dependencies): Probe {
+export function createProbe({ feed, paper, camera, canvas, freezeTime }: Dependencies): Probe {
   return {
     read: () => ({
       progress: feed.progress,
@@ -82,6 +88,8 @@ export function createProbe({ feed, paper, camera, canvas }: Dependencies): Prob
     setProgress: (progress) => feed.settle(progress),
 
     holdStrain: (strain) => feed.holdStrain(strain),
+
+    freezeTime,
 
     show: (parts) => paper.show(parts),
 

@@ -63,12 +63,16 @@ export type TearLine = {
    * `active`, and opens up the first time it is asked to. `strain` is how hard
    * the pull is past the end: it tints the beam towards `rarity`, lights the
    * halo around it and sinks the rest of the prop into shadow.
+   *
+   * The opening runs on `dt` rather than on the scene clock: it is a transition,
+   * so a script that freezes the clock still gets a fully open cut.
    */
   update(state: {
     x: number
     y: number
     active: boolean
     time: number
+    dt: number
     strain: number
     rarity: Rarity
   }): void
@@ -190,16 +194,16 @@ export function createTearLine(): TearLine {
   object.add(veil, halo, beam)
   object.visible = false
 
-  /** Scene time when the cut started opening, null while the line is away. */
-  let appearedAt: number | null = null
+  /** Seconds the cut has been open, so the intro survives a frozen clock. */
+  let openedFor = 0
 
   return {
     object,
 
-    update({ x, y, active, time, strain, rarity }) {
+    update({ x, y, active, time, dt, strain, rarity }) {
       object.visible = active
       if (!active) {
-        appearedAt = null
+        openedFor = 0
         return
       }
 
@@ -218,8 +222,8 @@ export function createTearLine(): TearLine {
       auraUniforms.uCharge.value = charge
       veilUniforms.uCharge.value = charge
 
-      appearedAt ??= time
-      const progress = Math.min(1, (time - appearedAt) / OPENING_SECONDS)
+      openedFor += dt
+      const progress = Math.min(1, openedFor / OPENING_SECONDS)
       // Fast out of the paper, then easing into the ends: the beam looks released
       // rather than dragged out at one speed. The flare burns off over the same
       // curve, which is what lets the beam arrive calm.

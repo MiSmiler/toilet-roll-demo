@@ -11,6 +11,11 @@ export type Stage = {
   setPull(progress: number): void
   /** Jolts the camera once, as if the tear struck the frame. */
   shake(): void
+  /**
+   * Holds the scene clock at `at` seconds, so a script can shoot several frames
+   * with the same animation phase; null lets it run again.
+   */
+  freezeTime(at: number | null): void
   onFrame(render: (dt: number, elapsed: number) => void): void
 }
 
@@ -56,13 +61,16 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   let renderFrame: ((dt: number, elapsed: number) => void) | null = null
   const clock = new THREE.Clock()
   let shakeStartedAt: number | null = null
+  /** A scene time a script asked to hold, or null while the clock runs. */
+  let frozenTime: number | null = null
 
   renderer.setAnimationLoop(() => {
     // A tab that was in the background returns a huge delta; clamp it so the
     // smoothing never jumps.
     const dt = Math.min(clock.getDelta(), 0.05)
-    renderFrame?.(dt, clock.elapsedTime)
-    applyCameraShake(clock.elapsedTime)
+    const elapsed = frozenTime ?? clock.elapsedTime
+    renderFrame?.(dt, elapsed)
+    applyCameraShake(elapsed)
     renderer.render(scene, camera)
   })
 
@@ -112,6 +120,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     },
     shake() {
       shakeStartedAt = clock.elapsedTime
+    },
+    freezeTime(at) {
+      frozenTime = at
     },
     onFrame(render) {
       renderFrame = render

@@ -34,7 +34,10 @@ export type PaperState = {
   torn: boolean
   /** Which rarity the cut shows, set before the pull and read by the tear line. */
   rarity: Rarity
+  /** Scene time, for the world's own animation. */
   time: number
+  /** Real seconds since the last frame, for transitions that ignore the clock. */
+  dt: number
 }
 
 /** Which parts of the prop are drawn. A debug run switches them one at a time. */
@@ -172,7 +175,7 @@ export function createToiletRoll(): ToiletRoll {
       )
     },
 
-    setPaper({ length, sway, strain, torn, rarity, time }) {
+    setPaper({ length, sway, strain, torn, rarity, time, dt }) {
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
@@ -231,6 +234,7 @@ export function createToiletRoll(): ToiletRoll {
         y: bodyTopY,
         active: tailLength > 0 && enabled.tearLine && !torn,
         time,
+        dt,
         strain,
         rarity,
       })

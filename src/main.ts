@@ -18,7 +18,13 @@ const pull = trackPull(canvas, {
   pixelsPerFullPull: () => canvas.clientHeight * params.dragScreenHeights,
 })
 
-const probe = createProbe({ feed, paper, camera: stage.camera, canvas })
+const probe = createProbe({
+  feed,
+  paper,
+  camera: stage.camera,
+  canvas,
+  freezeTime: stage.freezeTime,
+})
 window.debug = probe
 
 let wasTorn = false
@@ -46,6 +52,7 @@ stage.onFrame((dt, time) => {
     torn: feed.torn,
     rarity: params.rarity,
     time,
+    dt,
   })
 
   // The tear is the one frame where the camera gets hit.
