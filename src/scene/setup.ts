@@ -1,9 +1,14 @@
 import * as THREE from 'three'
 import { params } from '../params'
 
+/** The camera keeps its sideways angle throughout the pull. */
+const CAMERA_X = 1.05
+
 export type Stage = {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
+  /** Moves the camera to the framing for this pull progress. */
+  setPull(progress: number): void
   /** Jolts the camera once, as if the tear struck the frame. */
   shake(): void
   onFrame(render: (dt: number, elapsed: number) => void): void
@@ -18,10 +23,10 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const scene = new THREE.Scene()
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100)
-  const lookTarget = new THREE.Vector3(0, 0.5, 0)
-  camera.position.set(1.05, 1.0, 5.6)
+  const lookTarget = new THREE.Vector3(0, params.cameraStartLookY, 0)
+  camera.position.set(CAMERA_X, params.cameraStartY, params.cameraDistance)
   camera.lookAt(lookTarget)
-  const cameraHome = camera.position.clone()
+  const cameraBase = camera.position.clone()
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x7f8698, 1.15))
 
@@ -69,7 +74,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     const decay = Math.max(0, 1 - elapsed / params.impactSeconds) ** 2
     if (decay === 0) {
       shakeStartedAt = null
-      camera.position.copy(cameraHome)
+      camera.position.copy(cameraBase)
       camera.lookAt(lookTarget)
       return
     }
@@ -79,9 +84,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     // ways instead of leaving the frame permanently tilted.
     const kick = params.cameraShake * decay
     camera.position.set(
-      cameraHome.x + jolt(elapsed, 61, 0.3) * kick * 0.12,
-      cameraHome.y + kick + jolt(elapsed, 71, 1.9) * kick * 0.3,
-      cameraHome.z,
+      cameraBase.x + jolt(elapsed, 61, 0.3) * kick * 0.12,
+      cameraBase.y + kick + jolt(elapsed, 71, 1.9) * kick * 0.3,
+      cameraBase.z,
     )
     camera.lookAt(lookTarget)
     camera.rotateZ(params.cameraShakeRoll * decay * jolt(elapsed, 53, 0.7))
@@ -90,6 +95,21 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   return {
     scene,
     camera,
+    setPull(progress) {
+      const t = clamp01(progress / params.maxProgress)
+      cameraBase.set(
+        CAMERA_X,
+        lerp(params.cameraStartY, params.cameraEndY, t),
+        params.cameraDistance,
+      )
+      lookTarget.set(0, lerp(params.cameraStartLookY, params.cameraEndLookY, t), 0)
+
+      // The shake owns the camera while it runs; it reads the same base.
+      if (shakeStartedAt === null) {
+        camera.position.copy(cameraBase)
+        camera.lookAt(lookTarget)
+      }
+    },
     shake() {
       shakeStartedAt = clock.elapsedTime
     },
@@ -103,4 +123,12 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
 function jolt(time: number, rate: number, phase: number): number {
   const wobble = Math.sin(time * rate + phase) + 0.6 * Math.sin(time * rate * 1.87 + phase * 2.1)
   return wobble / 1.6
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t
 }

@@ -192,6 +192,46 @@ export function createLab(
       read: () => params.cameraShakeRoll,
       write: (value) => (params.cameraShakeRoll = value),
     },
+    {
+      label: '镜头距离',
+      min: 3,
+      max: 7,
+      step: 0.05,
+      read: () => params.cameraDistance,
+      write: (value) => (params.cameraDistance = value),
+    },
+    {
+      label: '起始高度',
+      min: 0,
+      max: 3,
+      step: 0.05,
+      read: () => params.cameraStartY,
+      write: (value) => (params.cameraStartY = value),
+    },
+    {
+      label: '起始看向',
+      min: 0,
+      max: 3,
+      step: 0.05,
+      read: () => params.cameraStartLookY,
+      write: (value) => (params.cameraStartLookY = value),
+    },
+    {
+      label: '结束高度',
+      min: -0.5,
+      max: 3,
+      step: 0.05,
+      read: () => params.cameraEndY,
+      write: (value) => (params.cameraEndY = value),
+    },
+    {
+      label: '结束看向',
+      min: -1,
+      max: 3,
+      step: 0.05,
+      read: () => params.cameraEndLookY,
+      write: (value) => (params.cameraEndLookY = value),
+    },
   ]
 
   for (const knob of numberKnobs) host.append(createNumberRow(knob))

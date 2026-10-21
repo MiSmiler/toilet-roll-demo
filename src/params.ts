@@ -31,6 +31,16 @@ export type DragParams = {
   cameraShake: number
   /** Camera roll at the tear, in radians; it rocks both ways. */
   cameraShakeRoll: number
+  /** Camera height at rest, in world units. */
+  cameraStartY: number
+  /** Camera distance, held constant through the pull; the framing changes by aim, not zoom. */
+  cameraDistance: number
+  /** What the camera looks at when at rest; the roll center. */
+  cameraStartLookY: number
+  /** Camera height when the paper is fully pulled out. */
+  cameraEndY: number
+  /** What the camera looks at when fully pulled: the tear line, so the crack sits centered. */
+  cameraEndLookY: number
 }
 
 export const params: DragParams = {
@@ -50,6 +60,11 @@ export const params: DragParams = {
   impactSeconds: 0.2,
   cameraShake: 0.6,
   cameraShakeRoll: 0.09,
+  cameraStartY: 1.5,
+  cameraDistance: 3.8,
+  cameraStartLookY: 1.9,
+  cameraEndY: 0.6,
+  cameraEndLookY: 1.6,
 }
 
 /** Perforations wrapped around the roll. */
