@@ -87,6 +87,8 @@ export type Effects = {
   shadow: boolean
   /** The flood of light that leaves the crack when the paper gives way. */
   burst: boolean
+  /** The prism in the light: the one rarity that splits its halo into colour. */
+  prism: boolean
   /** Motes and sparks thrown out of the seam. */
   particles: boolean
   /** The paper's tremble under strain, and the roll's jitter as it feeds. */
@@ -103,6 +105,7 @@ export const effects: Effects = {
   bloom: true,
   shadow: true,
   burst: true,
+  prism: true,
   particles: true,
   paperTremble: true,
   cameraShake: true,

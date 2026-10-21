@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { STRAIN_FLOOR } from '../paper/feed'
-import { effects } from '../params'
+import { effects, PAPER } from '../params'
 import { findRarity, type Rarity } from './rarity'
 import { createSeamSparks } from './seamSparks'
 
@@ -114,6 +114,7 @@ export function createTearLine(): TearLine {
     uTime: { value: 0 },
     uCharge: { value: 0 },
     uGain: { value: 1 },
+    uSpectrum: { value: 0 },
     uCore: { value: coreColor },
     uGlow: { value: glowColor },
   }
@@ -144,6 +145,7 @@ export function createTearLine(): TearLine {
     uTime: { value: 0 },
     uCharge: { value: 0 },
     uHalf: { value: new THREE.Vector2(SEAM_HALF_WIDTH, SEAM_HALF_HEIGHT) },
+    uSpectrum: { value: 0 },
     uCore: { value: coreColor },
     uGlow: { value: glowColor },
   }
@@ -230,6 +232,11 @@ export function createTearLine(): TearLine {
 
       uniforms.uCharge.value = charge
       uniforms.uGain.value = look.glowGain
+      // One prism, both lights: what the beam is split into, the pool under it is
+      // split into the same way.
+      const spectrum = effects.prism ? look.spectrum : 0
+      uniforms.uSpectrum.value = spectrum
+      seamUniforms.uSpectrum.value = spectrum
       seamUniforms.uTime.value = time
       seamUniforms.uCharge.value = charge
       veilUniforms.uCharge.value = charge
@@ -290,6 +297,34 @@ export const UNEVEN_GLSL = /* glsl */ `
   }
 `
 
+/**
+ * A hue turned into light. Three cosines a third of a cycle apart: the cheapest
+ * spectrum there is, and smooth, which is what a rainbow fringing a light has to
+ * be — a banded one would read as a texture.
+ */
+export const SPECTRUM_GLSL = /* glsl */ `
+  vec3 hueToLight(float hue) {
+    return 0.5 + 0.5 * cos(6.28318530718 * (hue + vec3(0.0, 0.33, 0.67)));
+  }
+`
+
+/**
+ * Where the prism's flare sits, in multiples of the pool's own width: it begins
+ * outside the rarity's glow, so the colour never touches the gold, and it is this
+ * wide relative to that distance.
+ */
+const FLARE_START = 1.2
+const FLARE_SPREAD = 1.2
+
+/**
+ * How many times the spectrum turns over per unit of that distance, and how fast
+ * the whole thing drifts. The colour is ordered outwards like a real prism, so a
+ * short run of cycles reads as a rainbow instead of as a tint.
+ */
+const SPECTRUM_CYCLES = 0.28
+const SPECTRUM_DRIFT = 0.06
+const SPECTRUM_GAIN = 0.35
+
 const BEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uWidth;
   uniform float uHeight;
@@ -301,12 +336,14 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uCharge;
   uniform float uGain;
+  uniform float uSpectrum;
   uniform vec3 uCore;
   uniform vec3 uGlow;
 
   varying vec2 vUv;
 
   ${UNEVEN_GLSL}
+  ${SPECTRUM_GLSL}
 
   void main() {
     // World units: x across the seam, y out from it.
@@ -336,13 +373,16 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
     float gain = mix(1.0, uGain, uCharge);
 
+    float lit = opening * ends * flicker * uFlash;
+
     // The seam is pushed past white on purpose: the bloom pass is what turns
     // that excess into light instead of into a flat bright stripe.
-    float intensity = opening * ends * flicker * uFlash * (core * 0.95 + spill * 0.22 * gain);
+    float intensity = lit * (core * 0.95 + spill * 0.22 * gain);
+    vec3 gold = mix(uGlow, uCore, core) * intensity;
 
     // Alpha stays at zero: the canvas composites premultiplied, so light pours
     // onto the page over the backdrop instead of replacing it.
-    gl_FragColor = vec4(mix(uGlow, uCore, core) * intensity, 0.0);
+    gl_FragColor = vec4(gold, 0.0);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -353,12 +393,14 @@ const SEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uCharge;
   uniform vec2 uHalf;
+  uniform float uSpectrum;
   uniform vec3 uCore;
   uniform vec3 uGlow;
 
   varying vec2 vUv;
 
   ${UNEVEN_GLSL}
+  ${SPECTRUM_GLSL}
 
   void main() {
     // World units from the seam, which the plane is centred on.
@@ -369,6 +411,10 @@ const SEAM_FRAGMENT_SHADER = /* glsl */ `
     // ridge rather than a clean gradient. It spills further below the seam than
     // above it, because that is the side the freed paper hangs on.
     float spillBias = p.y > 0.0 ? 0.7 : 1.0;
+    // The fringe is placed off the pool's base width: the spiky reach below
+    // belongs to the pool's own edge, and a fringe following it would stand up as
+    // a pillar wherever the seam has given way most.
+    float base = (0.1 + 0.06 * uCharge) * spillBias;
     float reach = (0.1 + 0.2 * knot + 0.06 * uCharge) * spillBias;
     float wash = exp(-pow(abs(p.y) / reach, 2.0));
 
@@ -377,8 +423,23 @@ const SEAM_FRAGMENT_SHADER = /* glsl */ `
     float strength = pow(uCharge, 1.5) * (0.3 + 0.9 * knot);
     float intensity = wash * ends * strength * 0.4;
 
+    vec3 gold = mix(uGlow, uCore, exp(-abs(p.y) / reach)) * intensity;
+
+    // The prism is a flare around the crack rather than a band along the light: it
+    // is measured from the crack itself, across the paper as well as down it, so
+    // the spectrum closes into rings around the place the light comes out of. It
+    // arrives with the charge — a white seam has no colour to split.
+    float prism = uSpectrum * smoothstep(0.15, 0.85, uCharge);
+    float radial = length(vec2(p.x * 0.55, p.y)) / base;
+    float flare = exp(-pow((radial - (${FLARE_START.toFixed(2)} + 1.0)) / ${FLARE_SPREAD.toFixed(2)}, 2.0));
+    float hue = (radial - ${FLARE_START.toFixed(2)}) * ${SPECTRUM_CYCLES.toFixed(2)} + uTime * ${SPECTRUM_DRIFT.toFixed(2)};
+    // The colour belongs to the light leaving the paper, so it dissolves across
+    // the sheet's edge instead of running out to the plane's.
+    float overPaper = 1.0 - smoothstep(${(PAPER.width / 2).toFixed(2)}, ${(PAPER.width * 1.3).toFixed(2)}, abs(p.x));
+    vec3 rainbow = hueToLight(hue) * flare * overPaper * strength * ${SPECTRUM_GAIN.toFixed(2)} * prism;
+
     // Clear alpha for the same reason as the beam: light adds to the page.
-    gl_FragColor = vec4(mix(uGlow, uCore, exp(-abs(p.y) / reach)) * intensity, 0.0);
+    gl_FragColor = vec4(gold + rainbow, 0.0);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>

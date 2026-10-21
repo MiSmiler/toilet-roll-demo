@@ -93,6 +93,13 @@ const page = await browser.newPage({
   deviceScaleFactor: dpr,
 })
 
+// A shader that fails to compile still renders "nothing" quietly, which reads
+// like a broken effect; the console is where it says so.
+page.on('console', (message) => {
+  if (message.type() === 'error') console.warn(`page error: ${message.text()}`)
+})
+page.on('pageerror', (error) => console.warn(`page error: ${error.message}`))
+
 try {
   await page.goto(server.resolvedUrls.local[0])
   await page.waitForLoadState('networkidle')

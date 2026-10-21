@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { effects } from '../params'
 import { findRarity, type Rarity } from './rarity'
-import { UNEVEN_GLSL } from './tearLine'
+import { SPECTRUM_GLSL, UNEVEN_GLSL } from './tearLine'
 
 /**
  * The flood is a light and not a shape: it has to reach past the frame on every
@@ -27,6 +27,22 @@ const FRONT_END = 7.6
 
 /** How long the white of the crack outlasts the strike, in seconds. */
 const STRIKE_SECONDS = 0.16
+
+/**
+ * The prism's fringe around the front: where it sits in multiples of the front's
+ * own width, how wide it is, and how many spectral cycles it runs through. The
+ * colour is ordered outwards, so a short run of cycles reads as a rainbow and a
+ * long one as a colour wheel.
+ */
+const FRINGE_START = 0.9
+const FRINGE_SPREAD = 1.1
+const SPECTRUM_CYCLES = 0.28
+
+/** How fast the whole spectrum turns, in cycles per second. Slow: a prism, not a wheel. */
+const SPECTRUM_DRIFT = 0.1
+
+/** How bright the fringe is next to the front it rings. */
+const SPECTRUM_GAIN = 0.9
 
 export type TearBurst = {
   object: THREE.Mesh
@@ -57,6 +73,7 @@ export function createTearBurst(): TearBurst {
     uFront: { value: FRONT_START },
     uWash: { value: 0 },
     uStrike: { value: 0 },
+    uSpectrum: { value: 0 },
     uCore: { value: new THREE.Color() },
     uGlow: { value: new THREE.Color() },
   }
@@ -113,8 +130,11 @@ export function createTearBurst(): TearBurst {
       uniforms.uFront.value = FRONT_START + eased * (FRONT_END - FRONT_START)
       uniforms.uWash.value = eased
       uniforms.uStrike.value = clamp01(1 - age / STRIKE_SECONDS)
-      uniforms.uCore.value.copy(findRarity(rarity).core)
-      uniforms.uGlow.value.copy(findRarity(rarity).glow)
+
+      const look = findRarity(rarity)
+      uniforms.uSpectrum.value = effects.prism ? look.spectrum : 0
+      uniforms.uCore.value.copy(look.core)
+      uniforms.uGlow.value.copy(look.glow)
 
       object.position.x = x
       object.position.y = y
@@ -138,12 +158,14 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uFront;
   uniform float uWash;
   uniform float uStrike;
+  uniform float uSpectrum;
   uniform vec3 uCore;
   uniform vec3 uGlow;
 
   varying vec2 vLocal;
 
   ${UNEVEN_GLSL}
+  ${SPECTRUM_GLSL}
 
   void main() {
     // The crack runs across the paper, so the light runs with it: measured
@@ -182,8 +204,17 @@ const FRAGMENT_SHADER = /* glsl */ `
     // there is still a picture in there to hand over to the next act.
     float corners = 1.0 - 0.45 * smoothstep(0.55, 1.6, length(vLocal));
 
+    // The prism is a second ring rather than a repaint of the first, and it rings
+    // the outside of the front, ordered outwards the way a real prism orders
+    // colour: the flood arrives gold at its leading edge and the spectrum circles
+    // it, a full rainbow out of the tools it has.
+    float beyond = (reach - front) / bandWidth;
+    float fringe = exp(-pow((beyond - (${FRINGE_START.toFixed(2)} + 1.0)) / ${FRINGE_SPREAD.toFixed(2)}, 2.0)) * (1.0 - uWash);
+    float hue = (beyond - ${FRINGE_START.toFixed(2)}) * ${SPECTRUM_CYCLES.toFixed(2)} + uTime * ${SPECTRUM_DRIFT.toFixed(2)};
+
     vec3 light = uGlow * filled * settle * body * nearCrack
                + mix(uGlow, vec3(1.0), 0.75) * band * 1.8
+               + hueToLight(hue) * fringe * ${SPECTRUM_GAIN.toFixed(2)} * uSpectrum
                + vec3(1.0) * crack * 2.5 * uStrike;
 
     gl_FragColor = vec4(light * corners, 0.0);
