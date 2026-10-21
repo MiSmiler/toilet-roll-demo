@@ -1,8 +1,25 @@
 import * as THREE from 'three'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { params } from '../params'
 
 /** The camera keeps its sideways angle throughout the pull. */
 const CAMERA_X = 1.05
+
+/**
+ * Linear brightness a pixel needs before it blooms. The paper sits below it, so
+ * only the cut's own light — which is deliberately pushed past white — spills
+ * over into a halo.
+ */
+const BLOOM_THRESHOLD = 1.0
+
+/** How much of that spilled light is added back over the frame. */
+const BLOOM_STRENGTH = 0.55
+
+/** How far the halo reaches; a wide, soft radius reads as air, a tight one as a smear. */
+const BLOOM_RADIUS = 0.5
 
 export type Stage = {
   scene: THREE.Scene
@@ -47,11 +64,21 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   rimLight.position.set(-1.4, 2.2, -3.6)
   scene.add(rimLight)
 
+  // Everything is drawn into a half-float buffer first, so values past white
+  // survive to the bloom pass instead of being clipped by the canvas.
+  const composer = new EffectComposer(renderer)
+  composer.addPass(new RenderPass(scene, camera))
+  composer.addPass(
+    new UnrealBloomPass(new THREE.Vector2(1, 1), BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD),
+  )
+  composer.addPass(new OutputPass())
+
   const resize = () => {
     const width = canvas.clientWidth
     const height = canvas.clientHeight
     if (width === 0 || height === 0) return
     renderer.setSize(width, height, false)
+    composer.setSize(width, height)
     camera.aspect = width / height
     camera.updateProjectionMatrix()
   }
@@ -71,7 +98,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     const elapsed = frozenTime ?? clock.elapsedTime
     renderFrame?.(dt, elapsed)
     applyCameraShake(elapsed)
-    renderer.render(scene, camera)
+    composer.render()
   })
 
   /** A short, hard jolt that rings out; the camera is home again when it ends. */

@@ -8,10 +8,10 @@ import { findRarity, type Rarity } from './rarity'
  */
 const BEAM_REACH = 1.8
 
-/** The hot centre of the beam, as thick as a hair on screen. */
+/** How thick the seam is at rest, before the pull forces it open. */
 const CORE_THICKNESS = 0.006
 
-/** How far the warm spill reaches away from the core. */
+/** How far the thin spill reaches away from the seam. */
 const GLOW_SPREAD = 0.02
 
 /** Each end fades over this much of the beam instead of stopping dead. */
@@ -36,11 +36,12 @@ const OPENING_SHARPNESS = 3
 const STRIKE_FLASH = 0.5
 
 /**
- * The halo the charge throws around the cut: half its size in world units. It
- * reaches wider than the beam because it is the room lit up, not the cut.
+ * The pool of light lying along the seam: half its size in world units. It is
+ * much flatter than the beam, because light leaking out of a gap washes the
+ * surface around it rather than shooting out in a shape of its own.
  */
-const AURA_HALF_WIDTH = 2.8
-const AURA_HALF_HEIGHT = 1.5
+const SEAM_HALF_WIDTH = 1.8
+const SEAM_HALF_HEIGHT = 1.0
 
 /**
  * The veil is a filter rather than a shape, so it covers the whole frame: it
@@ -61,8 +62,8 @@ export type TearLine = {
    * Puts the line across the paper at `y`, in the paper's local space, keeping
    * `x` in step with the sheet's drift. The line only becomes visible while
    * `active`, and opens up the first time it is asked to. `strain` is how hard
-   * the pull is past the end: it tints the beam towards `rarity`, lights the
-   * halo around it and sinks the rest of the prop into shadow.
+   * the pull is past the end: it forces the seam wider, washes the prop with the
+   * light escaping it and sinks the rest of the prop into shadow.
    *
    * The opening runs on `dt` rather than on the scene clock: it is a transition,
    * so a script that freezes the clock still gets a fully open cut.
@@ -79,24 +80,24 @@ export type TearLine = {
 }
 
 /**
- * The line that marks where the paper can be cut, and everything the charge
- * builds around it.
+ * The line that marks where the paper can be cut, and the light the pull forces
+ * out of it.
  *
  * The cut itself is drawn as light rather than as ink: the sheet is nearly
  * white already, so a brighter line is the only thing that can sit on it and
- * still read as something happening to the paper. The beam is screened over
- * the frame, so off the sheet it glows against the dark backdrop and over the
- * sheet it keeps a hairline — and the perforation underneath stays legible as
- * notches in it.
+ * still read as something happening to the paper. It is not a stripe being
+ * drawn but a seam being opened: it thickens as the pull strains, and along its
+ * length it is uneven, brighter where it has already given way.
  *
- * Charging then changes the picture: the prop is multiplied into shadow while a
- * halo of thin, slowly turning spikes breathes around the cut, one breath per
- * beat and the beat quickening as the paper nears giving way. The shadow is
- * what makes the light read as light.
+ * Charging then changes the picture the way a lid giving way would: the prop is
+ * multiplied into shadow while the light escaping the seam washes the surfaces
+ * around it, so the frame has one bright ridge and everything else falls back.
+ * Where the light runs past white the bloom pass takes over and turns the
+ * excess into a real halo.
  */
 export function createTearLine(): TearLine {
   const width = BEAM_REACH * 2
-  // Shared by the beam and the halo, so the tint is lerped once per frame.
+  // Shared by the seam and the beam, so the tint is lerped once per frame.
   const coreColor = WHITE_CORE.clone()
   const glowColor = WHITE_GLOW.clone()
 
@@ -136,24 +137,24 @@ export function createTearLine(): TearLine {
   beam.frustumCulled = false
   beam.renderOrder = 3
 
-  const auraUniforms = {
+  const seamUniforms = {
     uTime: { value: 0 },
     uCharge: { value: 0 },
-    uHalf: { value: new THREE.Vector2(AURA_HALF_WIDTH, AURA_HALF_HEIGHT) },
+    uHalf: { value: new THREE.Vector2(SEAM_HALF_WIDTH, SEAM_HALF_HEIGHT) },
     uCore: { value: coreColor },
     uGlow: { value: glowColor },
   }
 
-  const halo = new THREE.Mesh(
-    new THREE.PlaneGeometry(AURA_HALF_WIDTH * 2, AURA_HALF_HEIGHT * 2),
+  const seam = new THREE.Mesh(
+    new THREE.PlaneGeometry(SEAM_HALF_WIDTH * 2, SEAM_HALF_HEIGHT * 2),
     new THREE.ShaderMaterial({
-      uniforms: auraUniforms,
+      uniforms: seamUniforms,
       vertexShader: VERTEX_SHADER,
-      fragmentShader: AURA_FRAGMENT_SHADER,
+      fragmentShader: SEAM_FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
       // Light is not a surface and nothing in this shot casts a shadow, so the
-      // halo is laid over the frame whole: the paper never cuts a hole in it.
+      // seam's glow is laid over the frame whole: the paper never cuts a hole.
       depthTest: false,
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneMinusDstColorFactor,
@@ -162,9 +163,8 @@ export function createTearLine(): TearLine {
       blendDstAlpha: THREE.OneFactor,
     }),
   )
-  halo.frustumCulled = false
-  // Behind the beam, so the cut stays the sharpest thing in the frame.
-  halo.renderOrder = 2
+  seam.frustumCulled = false
+  seam.renderOrder = 2
 
   const veilUniforms = {
     uCharge: { value: 0 },
@@ -186,12 +186,12 @@ export function createTearLine(): TearLine {
     }),
   )
   veil.frustumCulled = false
-  // A hair behind the beam and the halo, but in front of every lit surface.
+  // A hair behind the light, but in front of every lit surface.
   veil.position.z = -0.001
   veil.renderOrder = 1
 
   const object = new THREE.Group()
-  object.add(veil, halo, beam)
+  object.add(veil, seam, beam)
   object.visible = false
 
   /** Seconds the cut has been open, so the intro survives a frozen clock. */
@@ -218,8 +218,8 @@ export function createTearLine(): TearLine {
 
       uniforms.uCharge.value = charge
       uniforms.uGain.value = look.glowGain
-      auraUniforms.uTime.value = time
-      auraUniforms.uCharge.value = charge
+      seamUniforms.uTime.value = time
+      seamUniforms.uCharge.value = charge
       veilUniforms.uCharge.value = charge
 
       openedFor += dt
@@ -250,6 +250,30 @@ const VERTEX_SHADER = /* glsl */ `
   }
 `
 
+/** Shared by both light shaders: one seam cannot be uneven two different ways. */
+const UNEVEN_GLSL = /* glsl */ `
+  float hash(float n) {
+    return fract(sin(n * 127.1) * 43758.5453);
+  }
+
+  float valueNoise(float x) {
+    float lower = floor(x);
+    float blend = fract(x);
+    blend = blend * blend * (3.0 - 2.0 * blend);
+    return mix(hash(lower), hash(lower + 1.0), blend);
+  }
+
+  // Light does not leak out of a crack evenly: it finds the places that gave
+  // way first. Three octaves of noise, drifting at different rates, so the
+  // unevenness never repeats along the seam. Roughly 0..1.
+  float uneven(float x) {
+    float drift = uTime * 0.12;
+    return 0.55 * valueNoise(x * 1.6 + drift)
+         + 0.3 * valueNoise(x * 4.3 - drift * 1.7)
+         + 0.15 * valueNoise(x * 9.7 + drift * 0.6);
+  }
+`
+
 const BEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uWidth;
   uniform float uHeight;
@@ -266,8 +290,10 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
 
   varying vec2 vUv;
 
+  ${UNEVEN_GLSL}
+
   void main() {
-    // World units: x across the beam, y out from its centre line.
+    // World units: x across the seam, y out from it.
     float x = vUv.x * uWidth;
     float y = (vUv.y - 0.5) * uHeight;
 
@@ -276,26 +302,30 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     float reach = abs(x - uWidth * 0.5);
     float opening = 1.0 - smoothstep(uOpen - 0.12, uOpen, reach);
 
-    float fromLine = abs(y);
-    float core = 1.0 - smoothstep(uThickness * 0.5, uThickness * 0.5 + fwidth(y), fromLine);
+    float knot = pow(uneven(x * 1.9), 4.0);
+    float fromSeam = abs(y);
 
-    // The rarer the cut, the brighter and the further its light spills, while
-    // the hairline over the paper stays a hairline.
-    float gain = mix(1.0, uGain, uCharge);
+    // Forced wider by the pull, and wider still where it has already given way:
+    // this is a gap being opened, not a stripe being drawn.
+    float halfWidth = uThickness * (0.5 + 1.6 * uCharge) * (0.7 + 0.9 * knot);
+    float core = 1.0 - smoothstep(halfWidth, halfWidth + fwidth(y), fromSeam);
+
     float spread = uSpread * mix(1.0, 1.8, uCharge);
-    float spill = exp(-pow(fromLine / spread, 2.0));
+    float spill = exp(-pow(fromSeam / spread, 2.0)) * (0.6 + 0.8 * knot);
 
-    // Neither end stops dead: the beam dissolves into the backdrop.
+    // Neither end stops dead: the seam dissolves into the backdrop.
     float ends = smoothstep(0.0, uEndFade, min(x, uWidth - x));
 
-    // A slow, shallow flicker keeps it reading as a live beam, not a sticker.
+    // A slow, shallow flicker keeps it reading as live, not as a sticker.
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
-    float intensity = opening * ends * flicker * uFlash * (core * 0.6 + spill * 0.16 * gain);
+    float gain = mix(1.0, uGain, uCharge);
 
-    // The colour is already scaled by its own strength, and alpha is left at
-    // zero: the canvas composites premultiplied, so a clear alpha pours the
-    // light straight onto the page over the backdrop instead of replacing it
-    // with a dark, low-alpha wash.
+    // The seam is pushed past white on purpose: the bloom pass is what turns
+    // that excess into light instead of into a flat bright stripe.
+    float intensity = opening * ends * flicker * uFlash * (core * 0.95 + spill * 0.22 * gain);
+
+    // Alpha stays at zero: the canvas composites premultiplied, so light pours
+    // onto the page over the backdrop instead of replacing it.
     gl_FragColor = vec4(mix(uGlow, uCore, core) * intensity, 0.0);
 
     #include <tonemapping_fragment>
@@ -303,7 +333,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   }
 `
 
-const AURA_FRAGMENT_SHADER = /* glsl */ `
+const SEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uCharge;
   uniform vec2 uHalf;
@@ -312,44 +342,27 @@ const AURA_FRAGMENT_SHADER = /* glsl */ `
 
   varying vec2 vUv;
 
+  ${UNEVEN_GLSL}
+
   void main() {
-    // World units from the cut, which the plane is centred on.
+    // World units from the seam, which the plane is centred on.
     vec2 p = (vUv - 0.5) * 2.0 * uHalf;
-    float r = length(p / uHalf);
+    float knot = pow(uneven(p.x * 1.9), 4.0);
 
-    // Thin spikes turning slowly: the light looks like it is straining out
-    // through cracks rather than like a painted star. Two layers keep them from
-    // reading as a regular gear.
-    float spine = atan(p.y, p.x) + uTime * 0.3;
-    float spikes = pow(0.5 + 0.5 * sin(spine * 13.0), 18.0)
-                 + 0.7 * pow(0.5 + 0.5 * sin(spine * 23.0 + 1.1), 26.0);
-    // A slow, uneven glow across the fan, so the spokes are not all equally
-    // loud and the burst looks like it is breathing rather than spinning.
-    spikes *= 0.6 + 0.4 * sin(spine * 2.0 + uTime * 0.6);
-    float rays = spikes * exp(-r * 2.6);
+    // The wash reaches further where the seam has opened most, so its edge is a
+    // ridge rather than a clean gradient. It spills further below the seam than
+    // above it, because that is the side the freed paper hangs on.
+    float spillBias = p.y > 0.0 ? 0.7 : 1.0;
+    float reach = (0.1 + 0.2 * knot + 0.06 * uCharge) * spillBias;
+    float wash = exp(-pow(abs(p.y) / reach, 2.0));
 
-    // The bed the spikes sit on: a soft pool of light around the cut. It is
-    // kept low in the middle so the paper's own surface still reads there, but
-    // wide enough that the gaps between the spikes are never black holes.
-    float corona = exp(-r * 6.0) * 0.45 + exp(-r * 1.7) * 0.32;
-
-    // A slow breathing over the whole fan, so the light looks alive without
-    // strobing: the charge is what carries the urgency, not the tempo.
-    float breath = 0.85 + 0.15 * sin(uTime * (1.2 + 2.5 * uCharge));
-
-    // One ring, growing with the charge and brightest as the paper gives way:
-    // it is the pull's pressure looking for a way out, not a pulse. It starts
-    // small enough to be hidden behind the paper, so it emerges from the cut.
-    float ringFront = pow(uCharge, 1.2) * 0.85;
-    float ringWidth = 14.0 + 26.0 * uCharge;
-    float ring = exp(-pow((r - ringFront) * ringWidth, 2.0));
-
-    float border = 1.0 - smoothstep(0.75, 1.0, r);
-    float strength = pow(uCharge, 1.6) * breath;
-    float intensity = (rays * 0.26 + corona * 0.3) * strength * border + ring * strength * 0.45;
+    // The light comes out of the paper, not out of the air beside it.
+    float ends = 1.0 - smoothstep(uHalf.x * 0.6, uHalf.x, abs(p.x));
+    float strength = pow(uCharge, 1.5) * (0.3 + 0.9 * knot);
+    float intensity = wash * ends * strength * 0.4;
 
     // Clear alpha for the same reason as the beam: light adds to the page.
-    gl_FragColor = vec4(mix(uGlow, uCore, exp(-r * 3.0) * 0.75) * intensity, 0.0);
+    gl_FragColor = vec4(mix(uGlow, uCore, exp(-abs(p.y) / reach)) * intensity, 0.0);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -367,11 +380,11 @@ const VEIL_FRAGMENT_SHADER = /* glsl */ `
     // A plain multiply, so only what the scene drew is affected: the prop sinks
     // into shadow and the backdrop, which is not in the frame buffer, is left
     // alone. It is the shadow that lets the charge read as light.
-    float fromCut = length((vUv - 0.5) * uSize);
-    // The light falls off from the cut rather than the whole prop going flat
-    // grey: near the line the paper keeps its own light, and away from it the
+    float fromSeam = length((vUv - 0.5) * uSize);
+    // The light falls off from the seam rather than the whole prop going flat
+    // grey: around the seam the paper keeps its own light, and away from it the
     // prop recedes, so the frame has one obvious place to look.
-    float shadow = uCharge * mix(0.1, 1.0, smoothstep(0.08, 0.85, fromCut));
+    float shadow = uCharge * smoothstep(0.05, 0.8, fromSeam);
     gl_FragColor = vec4(mix(vec3(1.0), uShadow, shadow), 1.0);
 
     #include <colorspace_fragment>
