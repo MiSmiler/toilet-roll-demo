@@ -32,6 +32,11 @@ export type Probe = {
   read(): SceneState
   /** Puts the paper at an exact progress, with no smoothing and no coasting. */
   setProgress(progress: number): void
+  /**
+   * Pins the strain so the taut pull can be photographed before it tears; the
+   * beam's colour and glow are read off it.
+   */
+  holdStrain(strain: number): void
   show(parts: Partial<PaperParts>): void
   /** Where the paper lands on the page, in CSS pixels — the unit a screenshot clip takes. */
   paperRect(): Rect
@@ -75,6 +80,8 @@ export function createProbe({ feed, paper, camera, canvas }: Dependencies): Prob
     }),
 
     setProgress: (progress) => feed.settle(progress),
+
+    holdStrain: (strain) => feed.holdStrain(strain),
 
     show: (parts) => paper.show(parts),
 

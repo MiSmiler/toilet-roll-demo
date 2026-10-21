@@ -19,6 +19,11 @@ export type Feed = {
   update(target: number, isDragging: boolean, dt: number): void
   /** Puts the paper at an exact progress, with no smoothing and no coasting. */
   settle(progress: number): void
+  /**
+   * Pins the strain at `strain` until the paper is settled again, so the taut
+   * pull can be photographed without the paper tearing. A script's knob only.
+   */
+  holdStrain(strain: number): void
   reset(): void
 }
 
@@ -47,6 +52,8 @@ export function createFeed(params: DragParams): Feed {
   let strain = 0
   let torn = false
   let phase: Phase = 'idle'
+  /** A strain a script asked to keep, or null while the drag owns it. */
+  let heldStrain: number | null = null
 
   const feed: Feed = {
     progress: 0,
@@ -58,12 +65,20 @@ export function createFeed(params: DragParams): Feed {
 
     settle,
 
+    holdStrain(next) {
+      heldStrain = clamp(next, 0, 1)
+      strain = heldStrain
+      sync()
+    },
+
     reset() {
       settle(0)
     },
 
     update(target, isDragging, dt) {
-      if (torn) return
+      // A held strain is a still frame for a screenshot: nothing moves, and the
+      // tear stays where it is.
+      if (torn || heldStrain !== null) return
 
       const previous = progress
 
@@ -95,6 +110,7 @@ export function createFeed(params: DragParams): Feed {
     velocity = 0
     strain = 0
     torn = false
+    heldStrain = null
     phase = 'idle'
     sync()
   }

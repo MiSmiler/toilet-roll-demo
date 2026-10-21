@@ -5,6 +5,13 @@
 //   node tools/screenshots.mjs                       the four-step drag script
 //   node tools/screenshots.mjs --progress 0.081 --viewport 1920x911 --dpr 2 \
 //        --crop paper --desc join
+//   node tools/screenshots.mjs --progress 0.95 --strain 0.9 --rarity legendary \
+//        --crop paper --desc glow-legendary
+//
+// `--progress` freezes one frame; add `--strain` to pin how hard the pull is
+// straining past the end, which is what tints the cut's beam by rarity (its
+// default is zero, a white beam). `--rarity` picks which rarity, as the lab's
+// radio buttons do. Without `--progress` the frame is held mid-drag instead.
 //
 // `--crop paper` asks the page where the paper is and cuts to that box, padded.
 // The clip is in CSS pixels; the PNG it writes is that box times `--dpr`.
@@ -22,6 +29,8 @@ const { values: options } = parseArgs({
     viewport: { type: 'string', default: '1280x800' },
     dpr: { type: 'string', default: '1' },
     progress: { type: 'string' },
+    strain: { type: 'string' },
+    rarity: { type: 'string' },
     hide: { type: 'string' },
     crop: { type: 'string', default: 'full' },
     desc: { type: 'string', default: 'frame' },
@@ -30,6 +39,12 @@ const { values: options } = parseArgs({
 
 const [width, height] = options.viewport.split('x').map(Number)
 const dpr = Number(options.dpr)
+
+// A held strain only means something with the paper pulled out to where the cut
+// is off the roll; without a progress there is no beam to hold it on.
+if (options.strain !== undefined && options.progress === undefined) {
+  throw new Error('--strain also needs --progress, e.g. 0.95, so the beam is on screen')
+}
 
 await mkdir(OUTPUT_DIR, { recursive: true })
 
@@ -47,6 +62,11 @@ try {
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(700)
 
+  if (options.rarity) {
+    await page.click(`input[name^="lab-choice"][value="${options.rarity}"]`)
+    await page.waitForTimeout(100)
+  }
+
   if (options.hide) {
     const parts = options.hide.split(',')
     await page.evaluate((hidden) => {
@@ -58,6 +78,9 @@ try {
     await runDragScript()
   } else {
     await page.evaluate((progress) => window.debug.setProgress(progress), Number(options.progress))
+    if (options.strain !== undefined) {
+      await page.evaluate((strain) => window.debug.holdStrain(strain), Number(options.strain))
+    }
     // A settled scene draws the same pixels every time, so one frame is enough.
     await page.waitForTimeout(300)
     console.log(JSON.stringify(await page.evaluate(() => window.debug.read())))
