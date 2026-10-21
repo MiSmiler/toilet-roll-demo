@@ -10,7 +10,7 @@ const BEAM_REACH = 1.8
 const CORE_THICKNESS = 0.006
 
 /** How far the warm spill reaches away from the core. */
-const GLOW_SPREAD = 0.034
+const GLOW_SPREAD = 0.02
 
 /** Each end fades over this much of the beam instead of stopping dead. */
 const END_FADE = 0.5
@@ -21,8 +21,9 @@ const BAND_HEIGHT = 0.24
 /** How long the cut takes to open, from the paper outwards. */
 const REVEAL_SECONDS = 0.3
 
-const CORE_COLOR = '#ff8c2a'
-const GLOW_COLOR = '#c25a10'
+/** White, but a touch cool: next to the paper's own warmth it reads whiter. */
+const CORE_COLOR = '#ffffff'
+const GLOW_COLOR = '#dce8ff'
 
 export type TearLine = {
   object: THREE.Mesh
@@ -63,7 +64,14 @@ export function createTearLine(): TearLine {
     fragmentShader: FRAGMENT_SHADER,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    // Screen rather than plain add: light added to a surface that is already
+    // bright barely shows, so the paper keeps a hairline while the pool of
+    // light around it stays readable against the dark backdrop.
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneMinusDstColorFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneMinusDstAlphaFactor,
+    blendDstAlpha: THREE.OneFactor,
   })
 
   const object = new THREE.Mesh(new THREE.PlaneGeometry(width, BAND_HEIGHT), material)
@@ -135,10 +143,10 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     // A slow, shallow flicker keeps it reading as a live beam, not a sticker.
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
-    float intensity = opening * ends * flicker * (core * 0.75 + spill * 0.45);
+    float intensity = opening * ends * flicker * (core * 0.6 + spill * 0.16);
 
-    // Premultiplied: the renderer adds rgb straight into the framebuffer, and
-    // the page composites that over its own background.
+    // Screen blend wants rgb already scaled by its own strength, with that
+    // strength carried in alpha.
     gl_FragColor = vec4(mix(uGlow, uCore, core) * intensity, intensity);
 
     #include <tonemapping_fragment>
