@@ -1,5 +1,8 @@
 export type Pull = {
-  /** Progress the paper should follow, 0..1. */
+  /**
+   * Progress the paper should follow. Above 1 the paper has stopped, but the
+   * pull has not, and the feed turns the excess into strain.
+   */
   target: number
   isDragging: boolean
   reset(): void
@@ -14,9 +17,9 @@ export type PullSource = {
 
 /**
  * Turns pointer movement anywhere on the surface into the progress the paper
- * should follow. A gesture starts from wherever the paper actually sits, and
- * travel past either end is dropped as it happens — otherwise the pointer runs
- * up a debt that the paper has to pay off before it moves again.
+ * should follow. A gesture starts from wherever the paper actually sits. Travel
+ * past the start is dropped, because there is no paper to give; travel past the
+ * end is kept, because it is exactly the effort that strains the paper.
  */
 export function trackPull(surface: HTMLElement, source: PullSource): Pull {
   let lastY: number | null = null
@@ -44,7 +47,7 @@ export function trackPull(surface: HTMLElement, source: PullSource): Pull {
     if (lastY === null) return
     const travel = event.clientY - lastY
     lastY = event.clientY
-    pull.target = clamp(pull.target + travel / source.pixelsPerFullPull(), 0, 1)
+    pull.target = Math.max(0, pull.target + travel / source.pixelsPerFullPull())
   })
 
   const endPull = () => {
@@ -56,8 +59,4 @@ export function trackPull(surface: HTMLElement, source: PullSource): Pull {
   surface.addEventListener('pointercancel', endPull)
 
   return pull
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }

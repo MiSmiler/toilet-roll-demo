@@ -21,6 +21,8 @@ const pull = trackPull(canvas, {
 const probe = createProbe({ feed, paper, camera: stage.camera, canvas })
 window.debug = probe
 
+let wasTorn = false
+
 const lab = createLab(
   params,
   query<HTMLElement>('[data-lab]'),
@@ -36,7 +38,11 @@ stage.onFrame((dt, time) => {
 
   // Faster paper swings harder; standing paper is almost still.
   const sway = params.sway * Math.min(1, feed.speed / 3)
-  paper.setPaper({ length: feed.length, sway, time })
+  paper.setPaper({ length: feed.length, sway, strain: feed.strain, torn: feed.torn, time })
+
+  // The tear is the one frame where the camera gets hit.
+  if (feed.torn && !wasTorn) stage.shake()
+  wasTorn = feed.torn
 
   lab.showState(probe.read())
 })

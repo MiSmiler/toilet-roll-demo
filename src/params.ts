@@ -15,6 +15,22 @@ export type DragParams = {
   maxProgress: number
   /** Sideways drift amplitude, scaled by how fast the paper is moving. */
   sway: number
+  /** Screen heights of extra drag past the end that fill the strain meter. */
+  strainTravel: number
+  /** Peak tremble, in world units, at full strain. */
+  shake: number
+  /** How far the torn edge wanders across the paper, in world units. */
+  tearJag: number
+  /** How far the ten-segment piece drops after it tears free, in world units. */
+  tearDrop: number
+  /** How far the piece swings from its torn edge, in radians. */
+  tearSwing: number
+  /** How long the tear and the camera jolt take to settle; they end together. */
+  impactSeconds: number
+  /** Vertical camera jolt at the tear, in world units. */
+  cameraShake: number
+  /** Camera roll at the tear, in radians; it rocks both ways. */
+  cameraShakeRoll: number
 }
 
 export const params: DragParams = {
@@ -26,6 +42,14 @@ export const params: DragParams = {
   maxSegments: 10,
   maxProgress: 0.95,
   sway: 0.022,
+  strainTravel: 0.3,
+  shake: 0.012,
+  tearJag: 0.03,
+  tearDrop: 0.6,
+  tearSwing: 0.04,
+  impactSeconds: 0.2,
+  cameraShake: 0.6,
+  cameraShakeRoll: 0.09,
 }
 
 /** Perforations wrapped around the roll. */
