@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { Feed } from '../paper/feed'
 import type { PaperParts, ToiletRoll } from '../scene/toiletRoll'
 import { params } from '../params'
+import type { Rarity } from '../scene/rarity'
 
 /** Everything a frame is built from, plus the surface the frame lands on. */
 export type SceneState = {
@@ -11,6 +12,8 @@ export type SceneState = {
   strain: number
   /** True once the paper has torn. */
   torn: boolean
+  /** Which rarity the cut shows, as the lab's radio buttons left it. */
+  rarity: Rarity
   segments: number
   /** Unrolled length in world units. */
   length: number
@@ -29,6 +32,16 @@ export type Probe = {
   read(): SceneState
   /** Puts the paper at an exact progress, with no smoothing and no coasting. */
   setProgress(progress: number): void
+  /**
+   * Pins the strain so the taut pull can be photographed before it tears; the
+   * beam's colour and glow are read off it.
+   */
+  holdStrain(strain: number): void
+  /**
+   * Pins the scene clock so a strip of frames shares one animation phase, or
+   * lets it run again with null. A script's knob only.
+   */
+  freezeTime(at: number | null): void
   show(parts: Partial<PaperParts>): void
   /** Where the paper lands on the page, in CSS pixels — the unit a screenshot clip takes. */
   paperRect(): Rect
@@ -39,6 +52,7 @@ type Dependencies = {
   paper: ToiletRoll
   camera: THREE.Camera
   canvas: HTMLCanvasElement
+  freezeTime: (at: number | null) => void
 }
 
 declare global {
@@ -55,12 +69,13 @@ declare global {
  * A settled scene keeps its sway at zero, so the same progress redraws the very
  * same pixels — which is what makes two screenshots comparable.
  */
-export function createProbe({ feed, paper, camera, canvas }: Dependencies): Probe {
+export function createProbe({ feed, paper, camera, canvas, freezeTime }: Dependencies): Probe {
   return {
     read: () => ({
       progress: feed.progress,
       strain: feed.strain,
       torn: feed.torn,
+      rarity: params.rarity,
       segments: feed.segments,
       length: feed.length,
       segmentLength: params.segmentLength,
@@ -71,6 +86,10 @@ export function createProbe({ feed, paper, camera, canvas }: Dependencies): Prob
     }),
 
     setProgress: (progress) => feed.settle(progress),
+
+    holdStrain: (strain) => feed.holdStrain(strain),
+
+    freezeTime,
 
     show: (parts) => paper.show(parts),
 

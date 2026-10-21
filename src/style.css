@@ -89,6 +89,15 @@ body.is-pulling #stage {
   background: rgba(244, 241, 233, 0.1);
 }
 
+/* The one action that undoes the whole session, standing on its own. */
+.lab__reset {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
 .lab__row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -137,6 +146,33 @@ body.is-pulling #stage {
 }
 
 .lab__toggle input {
+  accent-color: #d9d3c4;
+}
+
+.lab__choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.lab__choice > span {
+  color: rgba(244, 241, 233, 0.78);
+}
+
+.lab__choice-group {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.lab__choice-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lab__choice-group input {
   accent-color: #d9d3c4;
 }
 

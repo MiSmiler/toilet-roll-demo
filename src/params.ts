@@ -1,3 +1,5 @@
+import type { Rarity } from './scene/rarity'
+
 export type DragParams = {
   /** How many screen heights of downward drag count as a full pull. */
   dragScreenHeights: number
@@ -41,6 +43,11 @@ export type DragParams = {
   cameraEndY: number
   /** What the camera looks at when fully pulled: the tear line, so the crack sits centered. */
   cameraEndLookY: number
+  /**
+   * Which rarity the cut shows. A preview choice only — there is no drop table
+   * deciding it yet.
+   */
+  rarity: Rarity
 }
 
 export const params: DragParams = {
@@ -65,6 +72,7 @@ export const params: DragParams = {
   cameraStartLookY: 1.9,
   cameraEndY: 0.6,
   cameraEndLookY: 1.6,
+  rarity: 'rare',
 }
 
 /** Perforations wrapped around the roll. */
