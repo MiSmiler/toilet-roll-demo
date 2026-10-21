@@ -1,15 +1,26 @@
-/** Fixed geometry of the prop. Tuning that never changes at runtime lives here. */
+/** Fixed geometry of the prop. Sized so one segment reads as 5:4. */
 export const PAPER = {
-  width: 1.4,
-  rollRadius: 0.55,
-  coreRadius: 0.2,
-  rollCenterY: 1.05,
+  width: 1.0,
+  rollRadius: 0.5,
+  coreRadius: 0.18,
+  rollCenterY: 1.9,
+}
+
+/**
+ * The swipe: starts inside the paper's column, ends on a fixed point near the
+ * bottom of the screen. The fractions are of the viewport, not of pixels.
+ */
+export const GESTURE = {
+  endX: 0.5,
+  endY: 0.8,
+  /** The start box must stay above the end point, or the swipe cannot reach it. */
+  zoneBottom: 0.6,
+  /** Sideways slack on each side, as a fraction of the paper's on-screen width. */
+  zoneMargin: 0.5,
 }
 
 export type DragParams = {
-  /** Screen pixels pulled to feed one world unit of paper. Lower is twitchier. */
-  pixelsPerUnit: number
-  /** How fast the strip catches up to the pointer. Higher is tighter. */
+  /** How fast the paper catches up to the pointer. Higher is tighter. */
   followStiffness: number
   /** Share of the release velocity kept as coasting. Zero stops dead. */
   momentum: number
@@ -19,18 +30,16 @@ export type DragParams = {
   maxSegments: number
   /** Sideways drift amplitude, scaled by how fast the paper is moving. */
   sway: number
-  /** Screen direction of a positive pull. */
-  pullAxis: { x: number; y: number }
+  showStartZone: boolean
 }
 
 export const params: DragParams = {
-  pixelsPerUnit: 220,
   followStiffness: 45,
   momentum: 0.25,
   allowRewind: true,
-  snapOnRelease: false,
-  segmentLength: 0.3,
+  snapOnRelease: true,
+  segmentLength: 0.8,
   maxSegments: 10,
   sway: 0.022,
-  pullAxis: { x: 0.25, y: 1 },
+  showStartZone: false,
 }

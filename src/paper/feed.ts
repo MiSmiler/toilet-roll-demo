@@ -1,55 +1,54 @@
 import type { DragParams } from '../params'
-import type { Pull } from '../input/drag'
 
 export type Feed = {
+  /** Smoothed progress, 0..1. */
+  progress: number
   /** Unrolled length in world units. */
   length: number
   segments: number
-  /** World units per second, used to drive the sway. */
-  velocity: number
-  update(pull: Pull, dt: number): void
+  /** Paper speed in world units per second, used to drive the sway. */
+  speed: number
+  update(target: number, isDragging: boolean, dt: number): void
   reset(): void
 }
 
 type Phase = 'idle' | 'dragging' | 'coasting'
 
 /**
- * The whole feel of the pull lives here: how far the pointer drags maps to how
- * much paper comes out, and what happens the moment the finger lifts.
+ * Turns the raw swipe progress into the paper's progress: how tightly it
+ * follows, what it does on release, and where it settles.
  */
 export function createFeed(params: DragParams): Feed {
-  let length = 0
+  let progress = 0
   let velocity = 0
   let phase: Phase = 'idle'
 
   const feed: Feed = {
+    progress: 0,
     length: 0,
     segments: 0,
-    velocity: 0,
+    speed: 0,
 
     reset() {
-      length = 0
+      progress = 0
       velocity = 0
       phase = 'idle'
       sync()
     },
 
-    update(pull, dt) {
-      const previousLength = length
-      const maxLength = params.maxSegments * params.segmentLength
+    update(target, isDragging, dt) {
+      const previous = progress
 
-      if (pull.isDragging) {
+      if (isDragging) {
         phase = 'dragging'
-        const pulled = pull.pixels / params.pixelsPerUnit
-        const target = clamp(pulled, 0, maxLength)
-        const caughtUp = approach(length, target, params.followStiffness, dt)
-        length = params.allowRewind ? caughtUp : Math.max(length, caughtUp)
-        velocity = dt > 0 ? (length - previousLength) / dt : 0
+        const caughtUp = approach(progress, target, params.followStiffness, dt)
+        progress = params.allowRewind ? caughtUp : Math.max(progress, caughtUp)
+        velocity = dt > 0 ? (progress - previous) / dt : 0
       } else if (phase === 'dragging') {
         phase = params.momentum > 0 ? 'coasting' : 'idle'
         velocity *= params.momentum
       } else if (phase === 'coasting') {
-        length = clamp(length + velocity * dt, 0, maxLength)
+        progress = clamp(progress + velocity * dt, 0, 1)
         velocity *= Math.exp(-4 * dt)
         if (Math.abs(velocity) < 0.05) {
           velocity = 0
@@ -58,22 +57,21 @@ export function createFeed(params: DragParams): Feed {
       }
 
       if (phase === 'idle' && params.snapOnRelease) {
-        const nearestSegment = Math.round(length / params.segmentLength)
-        const snapped = nearestSegment * params.segmentLength
-        length = approach(length, clamp(snapped, 0, maxLength), 9, dt)
+        const nearestStep = Math.round(progress * params.maxSegments) / params.maxSegments
+        progress = approach(progress, nearestStep, 9, dt)
       }
 
-      // Lowering the segment count in the lab must pull the paper back in.
-      length = clamp(length, 0, maxLength)
-
+      progress = clamp(progress, 0, 1)
       sync()
     },
   }
 
   function sync() {
-    feed.length = length
-    feed.velocity = velocity
-    feed.segments = Math.min(params.maxSegments, Math.floor(length / params.segmentLength))
+    const maxLength = params.maxSegments * params.segmentLength
+    feed.progress = progress
+    feed.length = progress * maxLength
+    feed.segments = Math.floor(progress * params.maxSegments + 1e-6)
+    feed.speed = velocity * maxLength
   }
 
   return feed

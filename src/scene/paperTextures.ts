@@ -7,8 +7,8 @@ import * as THREE from 'three'
  */
 export function createSheetTexture(): THREE.Texture {
   const canvas = document.createElement('canvas')
-  canvas.width = 128
-  canvas.height = 256
+  canvas.width = 256
+  canvas.height = 205
   const ctx = canvas.getContext('2d')!
 
   paintPaper(ctx, canvas.width, canvas.height)

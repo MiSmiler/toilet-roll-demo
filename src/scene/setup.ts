@@ -15,8 +15,8 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const scene = new THREE.Scene()
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100)
-  camera.position.set(1.2, 0.55, 5.2)
-  camera.lookAt(0, -0.2, 0)
+  camera.position.set(1.05, 1.0, 5.6)
+  camera.lookAt(0, 0.5, 0)
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x7f8698, 1.15))
 

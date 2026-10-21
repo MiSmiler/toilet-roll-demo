@@ -37,14 +37,6 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
 
   const numberKnobs: NumberKnob[] = [
     {
-      label: '拖拽灵敏',
-      min: 60,
-      max: 520,
-      step: 10,
-      read: () => params.pixelsPerUnit,
-      write: (value) => (params.pixelsPerUnit = value),
-    },
-    {
       label: '跟手刚度',
       min: 4,
       max: 80,
@@ -61,10 +53,10 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
       write: (value) => (params.momentum = value),
     },
     {
-      label: '一段长度',
-      min: 0.16,
-      max: 0.5,
-      step: 0.01,
+      label: '一格长度',
+      min: 0.4,
+      max: 1.2,
+      step: 0.02,
       read: () => params.segmentLength,
       write: (value) => (params.segmentLength = value),
     },
@@ -98,6 +90,11 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
       label: '松手吸附到格位',
       read: () => params.snapOnRelease,
       write: (value) => (params.snapOnRelease = value),
+    },
+    {
+      label: '显示起点区域',
+      read: () => params.showStartZone,
+      write: (value) => (params.showStartZone = value),
     },
   ]
 
