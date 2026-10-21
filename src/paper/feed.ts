@@ -9,6 +9,8 @@ export type Feed = {
   /** Paper speed in world units per second, used to drive the sway. */
   speed: number
   update(target: number, isDragging: boolean, dt: number): void
+  /** Puts the paper at an exact progress, with no smoothing and no coasting. */
+  settle(progress: number): void
   reset(): void
 }
 
@@ -29,11 +31,10 @@ export function createFeed(params: DragParams): Feed {
     segments: 0,
     speed: 0,
 
+    settle,
+
     reset() {
-      progress = 0
-      velocity = 0
-      phase = 'idle'
-      sync()
+      settle(0)
     },
 
     update(target, isDragging, dt) {
@@ -59,6 +60,13 @@ export function createFeed(params: DragParams): Feed {
       progress = clamp(progress, 0, 1)
       sync()
     },
+  }
+
+  function settle(next: number) {
+    progress = clamp(next, 0, 1)
+    velocity = 0
+    phase = 'idle'
+    sync()
   }
 
   function sync() {

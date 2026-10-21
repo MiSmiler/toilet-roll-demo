@@ -3,6 +3,7 @@ import { createToiletRoll } from './scene/toiletRoll'
 import { trackPull } from './input/drag'
 import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
+import { createProbe } from './debug/probe'
 import { params } from './params'
 
 const canvas = query<HTMLCanvasElement>('#stage')
@@ -17,17 +18,18 @@ const pull = trackPull(canvas, {
   pixelsPerFullPull: () => canvas.clientHeight * params.dragScreenHeights,
 })
 
-const countLabel = query<HTMLElement>('[data-count]')
-const meter = query<HTMLElement>('[data-meter]')
-const hint = query<HTMLElement>('[data-hint]')
+const probe = createProbe({ feed, paper, camera: stage.camera, canvas })
+window.debug = probe
 
-createLab(params, query<HTMLElement>('[data-lab]'), () => {
-  pull.reset()
-  feed.reset()
-})
-
-let shownCount = ''
-let shownPercent = -1
+const lab = createLab(
+  params,
+  query<HTMLElement>('[data-lab]'),
+  () => {
+    pull.reset()
+    feed.reset()
+  },
+  probe,
+)
 
 stage.onFrame((dt, time) => {
   feed.update(pull.target, pull.isDragging, dt)
@@ -36,19 +38,7 @@ stage.onFrame((dt, time) => {
   const sway = params.sway * Math.min(1, feed.speed / 3)
   paper.setPaper({ length: feed.length, sway, time })
 
-  const count = `${feed.segments} / ${params.maxSegments}`
-  if (count !== shownCount) {
-    countLabel.textContent = count
-    shownCount = count
-  }
-
-  const percent = Math.round(feed.progress * 100)
-  if (percent !== shownPercent) {
-    meter.style.width = `${percent}%`
-    shownPercent = percent
-  }
-
-  hint.textContent = pull.isDragging ? '松手看它落在哪一格' : '按住画面，向下拖动'
+  lab.showState(probe.read())
 })
 
 function query<T extends Element>(selector: string): T {

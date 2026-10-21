@@ -1,4 +1,10 @@
+import type { Probe, SceneState } from '../debug/probe'
 import type { DragParams } from '../params'
+
+export type Lab = {
+  /** Paints the numbers the last frame was built from. Called every frame. */
+  showState(state: SceneState): void
+}
 
 type NumberKnob = {
   label: string
@@ -16,24 +22,43 @@ type ToggleKnob = {
 }
 
 /**
- * The feel lab: every knob that changes how the pull feels, adjustable live so
- * two versions can be compared without reloading.
+ * Three blocks: what the scene is doing right now, every knob that changes how
+ * the pull feels, and which parts of the prop are drawn. The knobs are
+ * adjustable live so two versions can be compared without reloading; the
+ * readout exists so a scene can be described well enough for a script to
+ * reproduce it.
  */
-export function createLab(params: DragParams, host: HTMLElement, onReset: () => void): void {
-  const head = document.createElement('div')
-  head.className = 'lab__head'
+export function createLab(
+  params: DragParams,
+  host: HTMLElement,
+  onReset: () => void,
+  probe: Probe,
+): Lab {
+  const percent = createReadout('已拉')
+  const bar = document.createElement('div')
+  bar.className = 'lab__bar'
+  const barFill = document.createElement('i')
+  bar.append(barFill)
+  percent.row.append(bar)
 
-  const title = document.createElement('span')
-  title.textContent = '手感参数'
+  const segments = createReadout('段数')
+  const length = createReadout('长度')
+  const surface = createReadout('窗口')
 
-  const resetButton = document.createElement('button')
-  resetButton.className = 'lab__reset'
-  resetButton.type = 'button'
-  resetButton.textContent = '重置纸带'
-  resetButton.addEventListener('click', onReset)
+  const copyLabel = '复制状态'
+  const copyButton = createPillButton(copyLabel, () => copyState())
 
-  head.append(title, resetButton)
-  host.append(head)
+  host.append(
+    createHead('状态', copyButton),
+    percent.row,
+    segments.row,
+    length.row,
+    surface.row,
+    createHead('手感参数', createPillButton('重置纸带', onReset)),
+  )
+
+  let current: SceneState | null = null
+  let shown = ''
 
   const numberKnobs: NumberKnob[] = [
     {
@@ -97,9 +122,116 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
   ]
 
   for (const knob of toggleKnobs) host.append(createToggleRow(knob))
+
+  host.append(createHead('显示'))
+
+  const partToggles: ToggleKnob[] = [
+    {
+      label: '卷筒',
+      read: () => probe.read().parts.roll,
+      write: (partShown) => probe.show({ roll: partShown }),
+    },
+    {
+      label: '纸片',
+      read: () => probe.read().parts.sheet,
+      write: (partShown) => probe.show({ sheet: partShown }),
+    },
+    {
+      label: '撕裂线',
+      read: () => probe.read().parts.tearLine,
+      write: (partShown) => probe.show({ tearLine: partShown }),
+    },
+  ]
+
+  for (const knob of partToggles) host.append(createToggleRow(knob))
+
+  async function copyState() {
+    if (!current) return
+
+    try {
+      await navigator.clipboard.writeText(describeState(current))
+      copyButton.textContent = '已复制'
+    } catch {
+      copyButton.textContent = '复制失败'
+    }
+    setTimeout(() => (copyButton.textContent = copyLabel), 1200)
+  }
+
+  return {
+    showState(state) {
+      const percentText = `${Math.round(state.progress * 100)}%`
+      const segmentsText = `${state.segments} / ${state.maxSegments}`
+      const lengthText = state.length.toFixed(2)
+      const surfaceText = `${state.viewport.width} × ${state.viewport.height} @ ${state.devicePixelRatio}`
+      const summary = [percentText, segmentsText, lengthText, surfaceText].join(' ')
+
+      // This runs every frame, and the paper moves in sub-percent steps.
+      if (summary === shown) return
+      shown = summary
+      current = state
+
+      percent.value.textContent = percentText
+      barFill.style.width = percentText
+      segments.value.textContent = segmentsText
+      length.value.textContent = lengthText
+      surface.value.textContent = surfaceText
+    },
+  }
+}
+
+/**
+ * One line of `key=value` pairs: readable at a glance, and pasted straight into
+ * a script that wants to rebuild the same frame.
+ */
+function describeState(state: SceneState): string {
+  const hidden = Object.entries(state.parts).flatMap(([part, shown]) => (shown ? [] : [part]))
+
+  return [
+    `progress=${state.progress.toFixed(3)}`,
+    `segmentLength=${state.segmentLength.toFixed(2)}`,
+    `maxSegments=${state.maxSegments}`,
+    `length=${state.length.toFixed(2)}`,
+    `viewport=${state.viewport.width}x${state.viewport.height}`,
+    `dpr=${state.devicePixelRatio}`,
+    `hidden=${hidden.length > 0 ? hidden.join(',') : 'none'}`,
+  ].join(' ')
 }
 
 let nextControlId = 1
+
+function createHead(title: string, action?: HTMLElement): HTMLElement {
+  const head = document.createElement('div')
+  head.className = 'lab__head'
+
+  const label = document.createElement('span')
+  label.textContent = title
+
+  head.append(label)
+  if (action) head.append(action)
+  return head
+}
+
+function createPillButton(label: string, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.className = 'lab__button'
+  button.type = 'button'
+  button.textContent = label
+  button.addEventListener('click', onClick)
+  return button
+}
+
+function createReadout(label: string): { row: HTMLElement; value: HTMLElement } {
+  const row = document.createElement('div')
+  row.className = 'lab__row'
+
+  const name = document.createElement('span')
+  name.textContent = label
+
+  const value = document.createElement('output')
+
+  row.append(name, value)
+  return { row, value }
+}
 
 function createNumberRow(knob: NumberKnob): HTMLElement {
   const row = document.createElement('div')

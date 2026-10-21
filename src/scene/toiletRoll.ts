@@ -27,9 +27,20 @@ export type PaperState = {
   time: number
 }
 
+/** Which parts of the prop are drawn. A debug run switches them one at a time. */
+export type PaperParts = {
+  roll: boolean
+  sheet: boolean
+  tearLine: boolean
+}
+
 export type ToiletRoll = {
   object: THREE.Group
   setPaper(state: PaperState): void
+  show(parts: Partial<PaperParts>): void
+  parts(): PaperParts
+  /** World box the prop can occupy now; generous on purpose, see the call site. */
+  bounds(): THREE.Box3
 }
 
 /**
@@ -109,12 +120,43 @@ export function createToiletRoll(): ToiletRoll {
 
   const sheetPositions = sheetGeometry.attributes.position.array as Float32Array
 
+  const shown: PaperParts = { roll: true, sheet: true, tearLine: true }
+  /** The tear line only exists in the last stretch of the pull. */
+  let tearLineInRange = false
+  /** Length currently drawn, kept so bounds() can answer without arguments. */
+  let drawnLength = params.segmentLength
+
+  function applyParts() {
+    spinner.visible = shown.roll
+    sheet.visible = shown.sheet
+    tearLine.visible = shown.tearLine && tearLineInRange
+  }
+
   return {
     object,
+
+    show(parts) {
+      Object.assign(shown, parts)
+      applyParts()
+    },
+
+    parts: () => ({ ...shown }),
+
+    bounds() {
+      // Wide enough for the tear line, which reaches past both paper edges, and
+      // deep enough to cover the roll's curve behind the sheet.
+      const halfWidth = Math.max(PAPER.width, TEAR_LINE_WIDTH) / 2 + params.sway
+      return new THREE.Box3(
+        new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength, -PAPER.rollRadius),
+        new THREE.Vector3(halfWidth, PAPER.rollCenterY + PAPER.rollRadius, SHEET_OFFSET_Z + 0.01),
+      )
+    },
+
     setPaper({ length, sway, time }) {
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
+      drawnLength = renderLength
 
       spinner.rotation.x = length / PAPER.rollRadius + ROLL_PHASE
 
@@ -126,7 +168,8 @@ export function createToiletRoll(): ToiletRoll {
       const tearY = -(renderLength - params.maxSegments * params.segmentLength)
       const alongStrip = renderLength > 0 ? -tearY / renderLength : 0
 
-      tearLine.visible = tearY <= 0
+      tearLineInRange = tearY <= 0
+      applyParts()
       tearLine.position.set(
         driftAt(alongStrip, sway, time),
         tearY,
