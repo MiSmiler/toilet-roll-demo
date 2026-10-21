@@ -169,12 +169,28 @@ export function createLab(
       write: (value) => (params.tearSwing = value),
     },
     {
-      label: '撕裂用时',
+      label: '冲击用时',
       min: 0.1,
-      max: 1.5,
+      max: 1,
       step: 0.05,
-      read: () => params.tearSeconds,
-      write: (value) => (params.tearSeconds = value),
+      read: () => params.impactSeconds,
+      write: (value) => (params.impactSeconds = value),
+    },
+    {
+      label: '镜头震动',
+      min: 0,
+      max: 1,
+      step: 0.02,
+      read: () => params.cameraShake,
+      write: (value) => (params.cameraShake = value),
+    },
+    {
+      label: '镜头滚转',
+      min: 0,
+      max: 0.15,
+      step: 0.005,
+      read: () => params.cameraShakeRoll,
+      write: (value) => (params.cameraShakeRoll = value),
     },
   ]
 

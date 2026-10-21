@@ -200,7 +200,7 @@ export function createToiletRoll(): ToiletRoll {
       } else {
         tornAt = null
       }
-      const tearProgress = tornAt === null ? 0 : clamp01((time - tornAt) / params.tearSeconds)
+      const tearProgress = tornAt === null ? 0 : clamp01((time - tornAt) / params.impactSeconds)
 
       // The body pivots at the torn edge. Before the tear it sits exactly under
       // the tail; after, it snaps away and holds.

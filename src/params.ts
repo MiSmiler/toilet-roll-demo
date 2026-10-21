@@ -25,8 +25,12 @@ export type DragParams = {
   tearDrop: number
   /** How far the piece swings from its torn edge, in radians. */
   tearSwing: number
-  /** How long the piece takes to snap free; it then holds its dropped pose. */
-  tearSeconds: number
+  /** How long the tear and the camera jolt take to settle; they end together. */
+  impactSeconds: number
+  /** Vertical camera jolt at the tear, in world units. */
+  cameraShake: number
+  /** Camera roll at the tear, in radians; it rocks both ways. */
+  cameraShakeRoll: number
 }
 
 export const params: DragParams = {
@@ -43,7 +47,9 @@ export const params: DragParams = {
   tearJag: 0.03,
   tearDrop: 0.6,
   tearSwing: 0.04,
-  tearSeconds: 0.2,
+  impactSeconds: 0.2,
+  cameraShake: 0.6,
+  cameraShakeRoll: 0.09,
 }
 
 /** Perforations wrapped around the roll. */
