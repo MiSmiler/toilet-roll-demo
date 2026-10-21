@@ -8,6 +8,11 @@ export type DragParams = {
   allowRewind: boolean
   segmentLength: number
   maxSegments: number
+  /**
+   * How much of the roll unwinds at full pull. Below 1 the last stretch stays
+   * on the roll, which is what "pulled all the way out" looks like.
+   */
+  maxProgress: number
   /** Sideways drift amplitude, scaled by how fast the paper is moving. */
   sway: number
 }
@@ -19,6 +24,7 @@ export const params: DragParams = {
   allowRewind: true,
   segmentLength: 0.8,
   maxSegments: 10,
+  maxProgress: 0.95,
   sway: 0.022,
 }
 

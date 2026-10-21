@@ -102,6 +102,14 @@ export function createLab(
       write: (value) => (params.maxSegments = value),
     },
     {
+      label: '拉满进度',
+      min: 0.5,
+      max: 1,
+      step: 0.01,
+      read: () => params.maxProgress,
+      write: (value) => (params.maxProgress = value),
+    },
+    {
       label: '摆动幅度',
       min: 0,
       max: 0.08,

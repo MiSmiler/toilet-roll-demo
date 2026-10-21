@@ -49,7 +49,7 @@ export function createFeed(params: DragParams): Feed {
         phase = params.momentum > 0 ? 'coasting' : 'idle'
         velocity *= params.momentum
       } else if (phase === 'coasting') {
-        progress = clamp(progress + velocity * dt, 0, 1)
+        progress = clamp(progress + velocity * dt, 0, params.maxProgress)
         velocity *= Math.exp(-4 * dt)
         if (Math.abs(velocity) < 0.05) {
           velocity = 0
@@ -57,13 +57,13 @@ export function createFeed(params: DragParams): Feed {
         }
       }
 
-      progress = clamp(progress, 0, 1)
+      progress = clamp(progress, 0, params.maxProgress)
       sync()
     },
   }
 
   function settle(next: number) {
-    progress = clamp(next, 0, 1)
+    progress = clamp(next, 0, params.maxProgress)
     velocity = 0
     phase = 'idle'
     sync()
