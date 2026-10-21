@@ -7,6 +7,8 @@ import { params } from '../params'
 export type SceneState = {
   /** Smoothed pull progress, 0..1. */
   progress: number
+  /** How hard the pull is straining past the end, 0..1. */
+  strain: number
   segments: number
   /** Unrolled length in world units. */
   length: number
@@ -55,6 +57,7 @@ export function createProbe({ feed, paper, camera, canvas }: Dependencies): Prob
   return {
     read: () => ({
       progress: feed.progress,
+      strain: feed.strain,
       segments: feed.segments,
       length: feed.length,
       segmentLength: params.segmentLength,

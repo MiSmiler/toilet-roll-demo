@@ -15,6 +15,10 @@ export type DragParams = {
   maxProgress: number
   /** Sideways drift amplitude, scaled by how fast the paper is moving. */
   sway: number
+  /** Screen heights of extra drag past the end that fill the strain meter. */
+  strainTravel: number
+  /** Peak tremble, in world units, at full strain. */
+  shake: number
 }
 
 export const params: DragParams = {
@@ -26,6 +30,8 @@ export const params: DragParams = {
   maxSegments: 10,
   maxProgress: 0.95,
   sway: 0.022,
+  strainTravel: 0.3,
+  shake: 0.012,
 }
 
 /** Perforations wrapped around the roll. */

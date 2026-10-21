@@ -36,7 +36,7 @@ stage.onFrame((dt, time) => {
 
   // Faster paper swings harder; standing paper is almost still.
   const sway = params.sway * Math.min(1, feed.speed / 3)
-  paper.setPaper({ length: feed.length, sway, time })
+  paper.setPaper({ length: feed.length, sway, strain: feed.strain, time })
 
   lab.showState(probe.read())
 })

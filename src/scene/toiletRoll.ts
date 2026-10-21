@@ -14,6 +14,8 @@ export type PaperState = {
   length: number
   /** Sideways drift amplitude in world units. */
   sway: number
+  /** How hard the pull is straining past the end, 0..1. */
+  strain: number
   time: number
 }
 
@@ -118,24 +120,36 @@ export function createToiletRoll(): ToiletRoll {
     parts: () => ({ ...enabled }),
 
     bounds() {
-      // Wide enough for the sheet's sway, deep enough to cover the roll's curve
-      // behind the sheet.
-      const halfWidth = PAPER.width / 2 + params.sway
+      // Wide enough for the sheet's sway, tremble and tilt, deep enough to cover
+      // the roll's curve behind the sheet.
+      const margin = params.shake * 3
+      const halfWidth = PAPER.width / 2 + params.sway + margin
       return new THREE.Box3(
-        new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength, -PAPER.rollRadius),
-        new THREE.Vector3(halfWidth, PAPER.rollCenterY + PAPER.rollRadius, SHEET_OFFSET_Z + 0.01),
+        new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength - margin, -PAPER.rollRadius),
+        new THREE.Vector3(halfWidth, PAPER.rollCenterY + PAPER.rollRadius + margin, SHEET_OFFSET_Z + 0.01),
       )
     },
 
-    setPaper({ length, sway, time }) {
+    setPaper({ length, sway, strain, time }) {
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
       drawnLength = renderLength
 
-      spinner.rotation.x = length / PAPER.rollRadius
+      // The strain already carries a half-strength floor, so the tremble is
+      // visible the moment the paper goes taut and grows from there.
+      const effort = strain
 
-      writeSheet(sheetPositions, renderLength, sway, time)
+      // Roll and sheet share the group's tremble. The roll adds a twist and the
+      // sheet's free end whips further, so the prop reads as strained rather
+      // than as one rigid object being shaken.
+      object.position.x = tremor(time, 41, 0) * params.shake * effort
+      object.position.y = PAPER.rollCenterY + tremor(time, 57, 1.7) * params.shake * effort * 0.6
+      object.rotation.z = tremor(time, 33, 3.1) * 0.0015 * effort
+
+      spinner.rotation.x = length / PAPER.rollRadius + tremor(time, 67, 0.9) * 0.015 * effort
+
+      writeSheet(sheetPositions, renderLength, sway, effort, time)
       sheetGeometry.attributes.position.needsUpdate = true
 
       // Segments are numbered from the free end, so the tear line sits ten
@@ -144,7 +158,7 @@ export function createToiletRoll(): ToiletRoll {
       const alongStrip = renderLength > 0 ? -tearY / renderLength : 0
 
       tearLine.update({
-        x: driftAt(alongStrip, sway, time),
+        x: driftAt(alongStrip, sway, time) + sheetTremorAt(alongStrip, effort, time),
         y: tearY,
         active: tearY <= 0 && enabled.tearLine,
         time,
@@ -192,20 +206,42 @@ function createSheetGeometry(): THREE.BufferGeometry {
   return geometry
 }
 
-function writeSheet(positions: Float32Array, length: number, sway: number, time: number) {
+function writeSheet(
+  positions: Float32Array,
+  length: number,
+  sway: number,
+  effort: number,
+  time: number,
+) {
   const halfWidth = PAPER.width / 2
 
   for (let row = 0; row <= STRIP_ROWS; row++) {
     const alongStrip = row / STRIP_ROWS
-    const drift = driftAt(alongStrip, sway, time)
+    const shift = driftAt(alongStrip, sway, time) + sheetTremorAt(alongStrip, effort, time)
 
     for (let column = 0; column < STRIP_COLUMNS; column++) {
       const offset = (row * STRIP_COLUMNS + column) * 3
-      positions[offset] = (column === 0 ? -halfWidth : halfWidth) + drift
+      positions[offset] = (column === 0 ? -halfWidth : halfWidth) + shift
       positions[offset + 1] = -length * alongStrip
       positions[offset + 2] = SHEET_OFFSET_Z
     }
   }
+}
+
+/**
+ * Two sine waves at rates that do not line up, so the tremble never settles into
+ * an obvious loop. Normalised to roughly -1..1.
+ */
+function tremor(time: number, rate: number, phase: number): number {
+  const wobble = Math.sin(time * rate + phase) + 0.6 * Math.sin(time * rate * 1.87 + phase * 2.1)
+  return wobble / 1.6
+}
+
+/** The taut sheet vibrates most at its free end and stays put where it leaves the roll. */
+function sheetTremorAt(alongStrip: number, effort: number, time: number): number {
+  const phase = time * 37 + alongStrip * 2.4
+  const wobble = Math.sin(phase) + 0.6 * Math.sin(phase * 1.7 + 2.3)
+  return (wobble / 1.6) * params.shake * 0.7 * effort * alongStrip ** 2
 }
 
 /** The far end travels the most, which reads as the loose end swinging. */
