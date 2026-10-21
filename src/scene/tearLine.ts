@@ -148,10 +148,9 @@ export function createTearLine(): TearLine {
       fragmentShader: AURA_FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
-      // The halo sits behind the sheet, so the paper hides the part of the burst
-      // it is standing in front of: the light comes from behind it, not from the
-      // viewer's side.
-      depthTest: true,
+      // Light is not a surface and nothing in this shot casts a shadow, so the
+      // halo is laid over the frame whole: the paper never cuts a hole in it.
+      depthTest: false,
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneMinusDstColorFactor,
       blendDst: THREE.OneFactor,
@@ -160,8 +159,6 @@ export function createTearLine(): TearLine {
     }),
   )
   halo.frustumCulled = false
-  // Behind the sheet, in front of the roll.
-  halo.position.z = -0.004
   // Behind the beam, so the cut stays the sharpest thing in the frame.
   halo.renderOrder = 2
 
@@ -291,9 +288,11 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
     float intensity = opening * ends * flicker * uFlash * (core * 0.6 + spill * 0.16 * gain);
 
-    // Screen blend wants rgb already scaled by its own strength, with that
-    // strength carried in alpha.
-    gl_FragColor = vec4(mix(uGlow, uCore, core) * intensity, intensity);
+    // The colour is already scaled by its own strength, and alpha is left at
+    // zero: the canvas composites premultiplied, so a clear alpha pours the
+    // light straight onto the page over the backdrop instead of replacing it
+    // with a dark, low-alpha wash.
+    gl_FragColor = vec4(mix(uGlow, uCore, core) * intensity, 0.0);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -326,23 +325,27 @@ const AURA_FRAGMENT_SHADER = /* glsl */ `
     float rays = spikes * exp(-r * 2.6);
 
     // The bed the spikes sit on: a soft pool of light around the cut. It is
-    // kept low in the middle so the paper's own surface still reads there.
-    float corona = exp(-r * 6.0) * 0.45 + exp(-r * 2.0) * 0.2;
+    // kept low in the middle so the paper's own surface still reads there, but
+    // wide enough that the gaps between the spikes are never black holes.
+    float corona = exp(-r * 6.0) * 0.45 + exp(-r * 1.7) * 0.32;
 
-    // One breath per beat thrown outwards, the beat quickening as the charge
-    // fills, so the whole thing reads as something winding up.
-    float beatRate = 1.5 + 6.5 * uCharge;
-    float beat = 0.5 + 0.5 * sin(uTime * beatRate);
-    float pulse = fract(uTime * beatRate / 6.2831853);
-    float ring = exp(-pow((r - pulse * 1.3) * 13.0, 2.0)) * (1.0 - pulse);
-    // The ring has to die before the plane's own edge.
-    ring *= 1.0 - smoothstep(0.6, 1.0, r);
+    // A slow breathing over the whole fan, so the light looks alive without
+    // strobing: the charge is what carries the urgency, not the tempo.
+    float breath = 0.85 + 0.15 * sin(uTime * (1.2 + 2.5 * uCharge));
+
+    // One ring, growing with the charge and brightest as the paper gives way:
+    // it is the pull's pressure looking for a way out, not a pulse. It starts
+    // small enough to be hidden behind the paper, so it emerges from the cut.
+    float ringFront = pow(uCharge, 1.2) * 0.85;
+    float ringWidth = 14.0 + 26.0 * uCharge;
+    float ring = exp(-pow((r - ringFront) * ringWidth, 2.0));
 
     float border = 1.0 - smoothstep(0.75, 1.0, r);
-    float strength = pow(uCharge, 1.6) * (0.4 + 0.6 * beat);
-    float intensity = (rays * 0.26 + corona * 0.3) * strength * border + ring * strength * 0.35;
+    float strength = pow(uCharge, 1.6) * breath;
+    float intensity = (rays * 0.26 + corona * 0.3) * strength * border + ring * strength * 0.45;
 
-    gl_FragColor = vec4(mix(uGlow, uCore, exp(-r * 3.0) * 0.75) * intensity, intensity);
+    // Clear alpha for the same reason as the beam: light adds to the page.
+    gl_FragColor = vec4(mix(uGlow, uCore, exp(-r * 3.0) * 0.75) * intensity, 0.0);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
