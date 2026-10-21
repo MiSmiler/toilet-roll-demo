@@ -1,11 +1,17 @@
 import * as THREE from 'three'
 import { PAPER, params } from '../params'
-import { createRollTexture, createSheetTexture } from './paperTextures'
+import { createRollTexture, createSheetTexture, createTearLineTexture } from './paperTextures'
 
 const STRIP_ROWS = 72
 const STRIP_COLUMNS = 2
+
 /** Lifts the sheet a hair off the roll so the tangent line never z-fights. */
 const SHEET_OFFSET_Z = PAPER.rollRadius + 0.006
+
+/** The tear line reaches past both edges of the paper on purpose. */
+const TEAR_LINE_WIDTH = PAPER.width * 1.5
+const TEAR_LINE_HEIGHT = 0.03
+const TEAR_DASH_PERIOD = 0.36
 
 export type PaperState = {
   /** Unrolled length in world units. */
@@ -82,20 +88,48 @@ export function createToiletRoll(): ToiletRoll {
   sheet.frustumCulled = false
   object.add(sheet)
 
+  const tearTexture = createTearLineTexture()
+  tearTexture.repeat.set(Math.round(TEAR_LINE_WIDTH / TEAR_DASH_PERIOD), 1)
+  const tearLine = new THREE.Mesh(
+    new THREE.PlaneGeometry(TEAR_LINE_WIDTH, TEAR_LINE_HEIGHT),
+    new THREE.MeshBasicMaterial({
+      map: tearTexture,
+      transparent: true,
+      depthWrite: false,
+    }),
+  )
+  tearLine.frustumCulled = false
+  object.add(tearLine)
+
   const sheetPositions = sheetGeometry.attributes.position.array as Float32Array
 
   return {
     object,
     setPaper({ length, sway, time }) {
-      // Feeding paper over the top turns the roll by length / radius.
+      // One segment always hangs below the last counted one, so the tear line
+      // never sits on the paper's own edge.
+      const renderLength = length + params.segmentLength
+
       spinner.rotation.x = length / PAPER.rollRadius
 
-      writeSheet(sheetPositions, length, sway, time)
+      writeSheet(sheetPositions, renderLength, sway, time)
       sheetGeometry.attributes.position.needsUpdate = true
+
+      // Segments are numbered from the free end, so the tear line sits ten
+      // segments above it. It only clears the roll near the end of the pull.
+      const tearY = -(renderLength - params.maxSegments * params.segmentLength)
+      const alongStrip = renderLength > 0 ? -tearY / renderLength : 0
+
+      tearLine.visible = tearY <= 0
+      tearLine.position.set(
+        driftAt(alongStrip, sway, time),
+        tearY,
+        SHEET_OFFSET_Z + 0.002,
+      )
 
       // One texture tile per segment keeps the perforations the same physical
       // size no matter how much paper is out.
-      sheetTexture.repeat.set(1, Math.max(length / params.segmentLength, 0.0001))
+      sheetTexture.repeat.set(1, Math.max(renderLength / params.segmentLength, 0.0001))
       const segmentsAround = Math.max(1, Math.round((2 * Math.PI * PAPER.rollRadius) / params.segmentLength))
       rollTexture.repeat.set(segmentsAround, 1)
     },
@@ -140,8 +174,7 @@ function writeSheet(positions: Float32Array, length: number, sway: number, time:
 
   for (let row = 0; row <= STRIP_ROWS; row++) {
     const alongStrip = row / STRIP_ROWS
-    // The far end travels the most, which reads as the loose end swinging.
-    const drift = Math.sin(alongStrip * 4.2 + time * 1.9) * sway * alongStrip ** 1.5
+    const drift = driftAt(alongStrip, sway, time)
 
     for (let column = 0; column < STRIP_COLUMNS; column++) {
       const offset = (row * STRIP_COLUMNS + column) * 3
@@ -150,4 +183,9 @@ function writeSheet(positions: Float32Array, length: number, sway: number, time:
       positions[offset + 2] = SHEET_OFFSET_Z
     }
   }
+}
+
+/** The far end travels the most, which reads as the loose end swinging. */
+function driftAt(alongStrip: number, sway: number, time: number): number {
+  return Math.sin(alongStrip * 4.2 + time * 1.9) * sway * alongStrip ** 1.5
 }

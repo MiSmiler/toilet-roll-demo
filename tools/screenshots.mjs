@@ -50,6 +50,10 @@ try {
   await page.getByLabel('显示起点区域').check()
   await page.waitForTimeout(100)
   await capture('04-start-zone')
+
+  await page.getByLabel('显示终点标记').uncheck()
+  await page.waitForTimeout(100)
+  await capture('05-no-guides')
 } finally {
   await browser.close()
   await server.close()

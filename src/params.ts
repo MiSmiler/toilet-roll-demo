@@ -31,6 +31,7 @@ export type DragParams = {
   /** Sideways drift amplitude, scaled by how fast the paper is moving. */
   sway: number
   showStartZone: boolean
+  showEndPoint: boolean
 }
 
 export const params: DragParams = {
@@ -42,4 +43,5 @@ export const params: DragParams = {
   maxSegments: 10,
   sway: 0.022,
   showStartZone: false,
+  showEndPoint: true,
 }

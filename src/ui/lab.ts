@@ -96,6 +96,11 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
       read: () => params.showStartZone,
       write: (value) => (params.showStartZone = value),
     },
+    {
+      label: '显示终点标记',
+      read: () => params.showEndPoint,
+      write: (value) => (params.showEndPoint = value),
+    },
   ]
 
   for (const knob of toggleKnobs) host.append(createToggleRow(knob))

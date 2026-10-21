@@ -26,6 +26,7 @@ export function createOverlay(host: HTMLElement): Overlay {
       startBox.style.width = `${area.start.right - area.start.left}px`
       startBox.style.height = `${area.start.bottom - area.start.top}px`
 
+      endPoint.hidden = !params.showEndPoint
       endPoint.style.left = `${area.end.x}px`
       endPoint.style.top = `${area.end.y}px`
     },

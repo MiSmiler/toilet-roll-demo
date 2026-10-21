@@ -70,6 +70,10 @@ body.is-pulling #stage {
   border-radius: 50%;
 }
 
+.guide--end[hidden] {
+  display: none;
+}
+
 .hud {
   position: fixed;
   top: 24px;
