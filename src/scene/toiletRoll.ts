@@ -1,17 +1,13 @@
 import * as THREE from 'three'
 import { PAPER, params } from '../params'
-import { createRollTexture, createSheetTexture, createTearLineTexture } from './paperTextures'
+import { createRollTexture, createSheetTexture } from './paperTextures'
+import { createTearLine } from './tearLine'
 
 const STRIP_ROWS = 72
 const STRIP_COLUMNS = 2
 
 /** Lifts the sheet a hair off the roll so the tangent line never z-fights. */
 const SHEET_OFFSET_Z = PAPER.rollRadius + 0.006
-
-/** The tear line reaches past both edges of the paper on purpose. */
-const TEAR_LINE_WIDTH = PAPER.width * 1.5
-const TEAR_LINE_HEIGHT = 0.03
-const TEAR_DASH_PERIOD = 0.36
 
 export type PaperState = {
   /** Unrolled length in world units. */
@@ -99,47 +95,32 @@ export function createToiletRoll(): ToiletRoll {
   sheet.frustumCulled = false
   object.add(sheet)
 
-  const tearTexture = createTearLineTexture()
-  tearTexture.repeat.set(Math.round(TEAR_LINE_WIDTH / TEAR_DASH_PERIOD), 1)
-  const tearLine = new THREE.Mesh(
-    new THREE.PlaneGeometry(TEAR_LINE_WIDTH, TEAR_LINE_HEIGHT),
-    new THREE.MeshBasicMaterial({
-      map: tearTexture,
-      transparent: true,
-      depthWrite: false,
-    }),
-  )
-  tearLine.frustumCulled = false
-  object.add(tearLine)
+  const tearLine = createTearLine()
+  // Fixed in front of the sheet; only its x and y follow the paper.
+  tearLine.object.position.z = SHEET_OFFSET_Z + 0.002
+  object.add(tearLine.object)
 
   const sheetPositions = sheetGeometry.attributes.position.array as Float32Array
 
-  const shown: PaperParts = { roll: true, sheet: true, tearLine: true }
-  /** The tear line only exists in the last stretch of the pull. */
-  let tearLineInRange = false
+  const enabled: PaperParts = { roll: true, sheet: true, tearLine: true }
   /** Length currently drawn, kept so bounds() can answer without arguments. */
   let drawnLength = params.segmentLength
-
-  function applyParts() {
-    spinner.visible = shown.roll
-    sheet.visible = shown.sheet
-    tearLine.visible = shown.tearLine && tearLineInRange
-  }
 
   return {
     object,
 
     show(parts) {
-      Object.assign(shown, parts)
-      applyParts()
+      Object.assign(enabled, parts)
+      spinner.visible = enabled.roll
+      sheet.visible = enabled.sheet
     },
 
-    parts: () => ({ ...shown }),
+    parts: () => ({ ...enabled }),
 
     bounds() {
-      // Wide enough for the tear line, which reaches past both paper edges, and
-      // deep enough to cover the roll's curve behind the sheet.
-      const halfWidth = Math.max(PAPER.width, TEAR_LINE_WIDTH) / 2 + params.sway
+      // Wide enough for the sheet's sway, deep enough to cover the roll's curve
+      // behind the sheet.
+      const halfWidth = PAPER.width / 2 + params.sway
       return new THREE.Box3(
         new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength, -PAPER.rollRadius),
         new THREE.Vector3(halfWidth, PAPER.rollCenterY + PAPER.rollRadius, SHEET_OFFSET_Z + 0.01),
@@ -162,13 +143,12 @@ export function createToiletRoll(): ToiletRoll {
       const tearY = -(renderLength - params.maxSegments * params.segmentLength)
       const alongStrip = renderLength > 0 ? -tearY / renderLength : 0
 
-      tearLineInRange = tearY <= 0
-      applyParts()
-      tearLine.position.set(
-        driftAt(alongStrip, sway, time),
-        tearY,
-        SHEET_OFFSET_Z + 0.002,
-      )
+      tearLine.update({
+        x: driftAt(alongStrip, sway, time),
+        y: tearY,
+        active: tearY <= 0 && enabled.tearLine,
+        time,
+      })
 
       // One texture tile per segment keeps the perforations the same physical
       // size no matter how much paper is out.

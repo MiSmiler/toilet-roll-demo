@@ -79,31 +79,6 @@ export function createRollTexture(): THREE.Texture {
   return finishTexture(canvas, 8)
 }
 
-/**
- * One dash of the tear line. A warm tint is used because it has to read both
- * on the white paper and on the dark backdrop the line pokes out into.
- */
-export function createTearLineTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas')
-  canvas.width = 64
-  canvas.height = 16
-  const ctx = canvas.getContext('2d')!
-
-  ctx.strokeStyle = '#ffd49c'
-  ctx.lineWidth = 8
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(5, 8)
-  ctx.lineTo(34, 8)
-  ctx.stroke()
-
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.wrapS = THREE.RepeatWrapping
-  texture.wrapT = THREE.ClampToEdgeWrapping
-  return texture
-}
-
 function paintPaper(ctx: CanvasRenderingContext2D, width: number, height: number) {
   ctx.fillStyle = '#fffdf7'
   ctx.fillRect(0, 0, width, height)
