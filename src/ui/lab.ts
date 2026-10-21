@@ -30,9 +30,9 @@ type ChoiceKnob = {
 }
 
 /**
- * Four blocks: what the scene is doing right now, every knob that changes the
- * pull's feel, which rarity the cut wears, and which parts of the prop are
- * drawn. The knobs are
+ * Four blocks, in the order a pull goes through them: which rarity the cut
+ * wears, which parts of the prop are drawn, what the scene is doing right now,
+ * then every knob that changes the pull's feel. The knobs are
  * adjustable live so two versions can be compared without reloading; the
  * readout exists so a scene can be described well enough for a script to
  * reproduce it.
@@ -65,17 +65,6 @@ export function createLab(
 
   const copyLabel = '复制状态'
   const copyButton = createPillButton(copyLabel, () => copyState())
-
-  host.append(
-    createHead('状态', copyButton),
-    percent.row,
-    strain.row,
-    torn.row,
-    segments.row,
-    length.row,
-    surface.row,
-    createHead('手感参数', createPillButton('重置纸带', onReset)),
-  )
 
   let current: SceneState | null = null
   let shown = ''
@@ -243,8 +232,6 @@ export function createLab(
     },
   ]
 
-  for (const knob of numberKnobs) host.append(createNumberRow(knob))
-
   const toggleKnobs: ToggleKnob[] = [
     {
       label: '允许回卷',
@@ -253,21 +240,12 @@ export function createLab(
     },
   ]
 
-  for (const knob of toggleKnobs) host.append(createToggleRow(knob))
-
-  // Rarity only changes how the cut looks, so it is not a feel parameter.
-  host.append(createHead('稀有度'))
-
   const rarityKnob: ChoiceKnob = {
     label: '本次抽到',
     options: RARITIES.map((look) => ({ value: look.id, label: look.label })),
     read: () => params.rarity,
     write: (value) => (params.rarity = value),
   }
-
-  host.append(createChoiceRow(rarityKnob))
-
-  host.append(createHead('显示'))
 
   const partToggles: ToggleKnob[] = [
     {
@@ -287,7 +265,22 @@ export function createLab(
     },
   ]
 
-  for (const knob of partToggles) host.append(createToggleRow(knob))
+  host.append(
+    createHead('稀有度'),
+    createChoiceRow(rarityKnob),
+    createHead('显示'),
+    ...partToggles.map(createToggleRow),
+    createHead('状态', copyButton),
+    percent.row,
+    strain.row,
+    torn.row,
+    segments.row,
+    length.row,
+    surface.row,
+    createHead('手感参数', createPillButton('重置纸带', onReset)),
+    ...numberKnobs.map(createNumberRow),
+    ...toggleKnobs.map(createToggleRow),
+  )
 
   async function copyState() {
     if (!current) return
