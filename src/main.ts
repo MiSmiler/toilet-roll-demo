@@ -35,6 +35,7 @@ const lab = createLab(
 
 stage.onFrame((dt, time) => {
   feed.update(pull.target, pull.isDragging, dt)
+  stage.setPull(feed.progress)
 
   // Faster paper swings harder; standing paper is almost still.
   const sway = params.sway * Math.min(1, feed.speed / 3)
