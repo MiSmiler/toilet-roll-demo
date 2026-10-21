@@ -22,6 +22,10 @@
 // phase: without it the spikes would be at a different angle in each shot and
 // two frames could not be compared.
 //
+// `--drag` takes the live path instead: it holds a real drag of that many screen
+// heights and shoots the frame while the pointer is still down. Past about 1.25
+// the paper tears, which a scripted strain cannot do.
+//
 // `--crop paper` asks the page where the paper is and cuts to that box, padded.
 // The clip is in CSS pixels; the PNG it writes is that box times `--dpr`.
 // Each file is named `<timestamp>_<desc>.png`, the stamp taken per shot, so a
@@ -41,6 +45,7 @@ const { values: options } = parseArgs({
     strain: { type: 'string' },
     rarity: { type: 'string' },
     time: { type: 'string' },
+    drag: { type: 'string' },
     hide: { type: 'string' },
     crop: { type: 'string', default: 'full' },
     desc: { type: 'string', default: 'frame' },
@@ -91,7 +96,9 @@ try {
     }, parts)
   }
 
-  if (options.progress === undefined) {
+  if (options.drag !== undefined) {
+    await runLiveDrag(Number(options.drag))
+  } else if (options.progress === undefined) {
     await runDragScript()
   } else {
     const shots = []
@@ -149,6 +156,24 @@ async function runDragScript() {
   await page.mouse.up()
   await page.waitForTimeout(800)
   await capture('released')
+}
+
+/**
+ * A real drag of `screenHeights`, held down and shot mid-pull. This is the only
+ * way to reach the strain, the tremble and the tear as they happen: a scripted
+ * strain pins the frame and never runs the feed.
+ */
+async function runLiveDrag(screenHeights) {
+  const start = { x: width / 2, y: Math.round(height * 0.175) }
+  const endY = Math.round(start.y + height * screenHeights)
+
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x, endY, { steps: 40 })
+  await page.mouse.move(start.x, endY)
+  await page.waitForTimeout(700)
+  await capture(`${options.desc}-drag${screenHeights}`)
+  await page.mouse.up()
 }
 
 /** Rarity is chosen the way a human chooses it: by clicking the lab's radio. */

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { STRAIN_FLOOR } from '../paper/feed'
 import { findRarity, type Rarity } from './rarity'
+import { createSeamSparks } from './seamSparks'
 
 /**
  * Half the beam's width: it reaches well past the paper on both sides, because
@@ -135,7 +136,8 @@ export function createTearLine(): TearLine {
   const beam = new THREE.Mesh(new THREE.PlaneGeometry(width, BAND_HEIGHT), material)
   // The line is rewritten every frame, so a stale bounding sphere would cull it.
   beam.frustumCulled = false
-  beam.renderOrder = 3
+  // Last of all: the cut is the sharpest thing in the frame.
+  beam.renderOrder = 4
 
   const seamUniforms = {
     uTime: { value: 0 },
@@ -190,8 +192,12 @@ export function createTearLine(): TearLine {
   veil.position.z = -0.001
   veil.renderOrder = 1
 
+  // Motes and sparks live in the same space as the prop, so the paper hides the
+  // ones behind it and the light does not merely sit on the screen.
+  const sparks = createSeamSparks()
+
   const object = new THREE.Group()
-  object.add(veil, seam, beam)
+  object.add(veil, seam, sparks.object, beam)
   object.visible = false
 
   /** Seconds the cut has been open, so the intro survives a frozen clock. */
@@ -221,6 +227,7 @@ export function createTearLine(): TearLine {
       seamUniforms.uTime.value = time
       seamUniforms.uCharge.value = charge
       veilUniforms.uCharge.value = charge
+      sparks.update({ time, charge, core: coreColor, glow: glowColor })
 
       openedFor += dt
       const progress = Math.min(1, openedFor / OPENING_SECONDS)
