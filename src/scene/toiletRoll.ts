@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { PAPER, params } from '../params'
+import { effects, PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
 import { createTearLine } from './tearLine'
 import type { Rarity } from './rarity'
@@ -189,8 +189,10 @@ export function createToiletRoll(): ToiletRoll {
       const bodyLength = renderLength + bodyTopY
 
       // The strain already carries a half-strength floor, so the tremble is
-      // visible the moment the paper goes taut and grows from there.
-      const effort = strain
+      // visible the moment the paper goes taut and grows from there. Everything
+      // the tremble drives reads this one value, so the lab can take the whole
+      // tremble away by zeroing it.
+      const effort = effects.paperTremble ? strain : 0
 
       // Roll and sheet share the group's tremble. The roll adds a twist and the
       // sheet's free end whips further, so the prop reads as strained rather
@@ -211,8 +213,10 @@ export function createToiletRoll(): ToiletRoll {
       // The body pivots at the torn edge. Before the tear it sits exactly under
       // the tail; after, it snaps away and holds.
       const tearEase = easeOutSnap(tearProgress)
-      bodyGroup.position.y = bodyTopY - params.tearDrop * tearEase
-      bodyGroup.rotation.z = params.tearSwing * tearEase
+      const drop = effects.tearFall ? params.tearDrop : 0
+      const swing = effects.tearFall ? params.tearSwing : 0
+      bodyGroup.position.y = bodyTopY - drop * tearEase
+      bodyGroup.rotation.z = swing * tearEase
 
       const jag = params.tearJag * clamp01(tailLength / JAG_RAMP)
 

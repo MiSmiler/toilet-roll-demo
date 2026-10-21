@@ -19,5 +19,5 @@ npm run dev
 - `src/paper/feed.ts` — 手感的核心：拖动距离怎么变成纸带长度，松手之后发生什么。
 - `src/input/drag.ts` — pointer 事件折成「纸带该到的进度」，从纸带当前位置起算。
 - `src/scene/` — Three.js 场景、纸张贴图、卷纸与纸带几何。
-- `src/ui/lab.ts` — 左下角面板：状态读数、手感参数、显示开关。
+- `src/ui/lab.ts` — 左下角面板：稀有度、显示开关、效果开关、手感开关与状态读数。
 - `src/debug/probe.ts` — `window.debug`，脚本读写场景的入口。

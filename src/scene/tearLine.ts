@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { STRAIN_FLOOR } from '../paper/feed'
+import { effects } from '../params'
 import { findRarity, type Rarity } from './rarity'
 import { createSeamSparks } from './seamSparks'
 
@@ -212,6 +213,11 @@ export function createTearLine(): TearLine {
         openedFor = 0
         return
       }
+
+      // The dust and sparks share the seam's group but not its switch: the light
+      // and the debris can be judged apart.
+      veil.visible = effects.shadow
+      sparks.object.visible = effects.particles
 
       // The cut is white whenever the paper is merely taut; the colour only
       // arrives with the effort of pulling past the end, so the tint itself is

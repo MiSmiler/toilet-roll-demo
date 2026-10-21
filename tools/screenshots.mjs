@@ -22,6 +22,9 @@
 // phase: without it the spikes would be at a different angle in each shot and
 // two frames could not be compared.
 //
+// `--off` unticks effect switches by their lab label ("粒子特效,蓄力光晕"), the way
+// a human would, so the same frame can be shot with an effect on and off.
+//
 // `--drag` takes the live path instead: it holds a real drag of that many screen
 // heights and shoots the frame while the pointer is still down. Past about 1.25
 // the paper tears, which a scripted strain cannot do.
@@ -47,6 +50,7 @@ const { values: options } = parseArgs({
     time: { type: 'string' },
     drag: { type: 'string' },
     hide: { type: 'string' },
+    off: { type: 'string' },
     crop: { type: 'string', default: 'full' },
     desc: { type: 'string', default: 'frame' },
   },
@@ -95,6 +99,8 @@ try {
       window.debug.show(Object.fromEntries(hidden.map((part) => [part, false])))
     }, parts)
   }
+
+  if (options.off) await switchOff(options.off.split(','))
 
   if (options.drag !== undefined) {
     await runLiveDrag(Number(options.drag))
@@ -177,6 +183,13 @@ async function runLiveDrag(screenHeights) {
 }
 
 /** Rarity is chosen the way a human chooses it: by clicking the lab's radio. */
+async function switchOff(labels) {
+  for (const label of labels) {
+    const box = page.getByRole('checkbox', { name: label, exact: true })
+    if (await box.isChecked()) await box.uncheck()
+  }
+}
+
 async function pickRarity(rarity) {
   await page.click(`input[name^="lab-choice"][value="${rarity}"]`)
   await page.waitForTimeout(100)

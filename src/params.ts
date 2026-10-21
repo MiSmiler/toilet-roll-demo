@@ -75,6 +75,38 @@ export const params: DragParams = {
   rarity: 'rare',
 }
 
+/**
+ * Which effects are drawn. Each one can be taken away without leaving a hole in
+ * the scene, so the lab can switch it off and judge what it contributed by the
+ * difference — that is the only honest way to argue an effect earns its cost.
+ */
+export type Effects = {
+  /** The bloom pass, which turns light pushed past white into a halo. */
+  bloom: boolean
+  /** The charge's shadow, multiplied over the prop as the seam opens. */
+  shadow: boolean
+  /** Motes and sparks thrown out of the seam. */
+  particles: boolean
+  /** The paper's tremble under strain, and the roll's jitter as it feeds. */
+  paperTremble: boolean
+  /** The camera's jolt when the paper lets go. */
+  cameraShake: boolean
+  /** The torn piece dropping and swinging free. */
+  tearFall: boolean
+  /** The strip's sideways swing while it moves. */
+  paperSway: boolean
+}
+
+export const effects: Effects = {
+  bloom: true,
+  shadow: true,
+  particles: true,
+  paperTremble: true,
+  cameraShake: true,
+  tearFall: true,
+  paperSway: true,
+}
+
 /** Perforations wrapped around the roll. */
 const SEGMENTS_AROUND_ROLL = 4
 
