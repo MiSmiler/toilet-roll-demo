@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { STRAIN_FLOOR } from '../paper/feed'
+import { findRarity, type Rarity } from './rarity'
 
 /**
  * Half the beam's width: it reaches well past the paper on both sides, because
@@ -34,17 +36,25 @@ const OPENING_SHARPNESS = 3
 const STRIKE_FLASH = 0.5
 
 /** White, but a touch cool: next to the paper's own warmth it reads whiter. */
-const CORE_COLOR = '#ffffff'
-const GLOW_COLOR = '#dce8ff'
+const WHITE_CORE = new THREE.Color('#ffffff')
+const WHITE_GLOW = new THREE.Color('#dce8ff')
 
 export type TearLine = {
   object: THREE.Mesh
   /**
    * Puts the line across the paper at `y`, in the paper's local space, keeping
    * `x` in step with the sheet's drift. The line only becomes visible while
-   * `active`, and opens up the first time it is asked to.
+   * `active`, and opens up the first time it is asked to. `strain` is how hard
+   * the pull is past the end, and it is what tints the beam towards `rarity`.
    */
-  update(state: { x: number; y: number; active: boolean; time: number }): void
+  update(state: {
+    x: number
+    y: number
+    active: boolean
+    time: number
+    strain: number
+    rarity: Rarity
+  }): void
 }
 
 /**
@@ -67,8 +77,9 @@ export function createTearLine(): TearLine {
     uOpen: { value: 0 },
     uFlash: { value: 1 },
     uTime: { value: 0 },
-    uCore: { value: new THREE.Color(CORE_COLOR) },
-    uGlow: { value: new THREE.Color(GLOW_COLOR) },
+    uGain: { value: 1 },
+    uCore: { value: WHITE_CORE.clone() },
+    uGlow: { value: WHITE_GLOW.clone() },
   }
 
   const material = new THREE.ShaderMaterial({
@@ -98,12 +109,22 @@ export function createTearLine(): TearLine {
   return {
     object,
 
-    update({ x, y, active, time }) {
+    update({ x, y, active, time, strain, rarity }) {
       object.visible = active
       if (!active) {
         appearedAt = null
         return
       }
+
+      // The cut is white whenever the paper is merely taut; the colour only
+      // arrives with the effort of pulling past the end, so the tint itself is
+      // what tells the player how rare the cut is turning out. A taut paper
+      // already carries the strain floor, so the tint counts from there.
+      const look = findRarity(rarity)
+      const charge = clamp01((strain - STRAIN_FLOOR) / (1 - STRAIN_FLOOR))
+      uniforms.uCore.value.copy(WHITE_CORE).lerp(look.core, charge)
+      uniforms.uGlow.value.copy(WHITE_GLOW).lerp(look.glow, charge)
+      uniforms.uGain.value = 1 + (look.glowGain - 1) * charge
 
       appearedAt ??= time
       const progress = Math.min(1, (time - appearedAt) / OPENING_SECONDS)
@@ -142,6 +163,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uOpen;
   uniform float uFlash;
   uniform float uTime;
+  uniform float uGain;
   uniform vec3 uCore;
   uniform vec3 uGlow;
 
@@ -166,7 +188,9 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     // A slow, shallow flicker keeps it reading as a live beam, not a sticker.
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
-    float intensity = opening * ends * flicker * uFlash * (core * 0.6 + spill * 0.16);
+    // The rarer the cut, the further its light spills, while the hairline over
+    // the paper stays a hairline.
+    float intensity = opening * ends * flicker * uFlash * (core * 0.6 + spill * 0.16 * uGain);
 
     // Screen blend wants rgb already scaled by its own strength, with that
     // strength carried in alpha.
@@ -176,3 +200,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     #include <colorspace_fragment>
   }
 `
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}

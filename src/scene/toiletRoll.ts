@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
 import { createTearLine } from './tearLine'
+import type { Rarity } from './rarity'
 
 /** Rows down the ten-segment piece. The short tail needs far fewer. */
 const BODY_ROWS = 72
@@ -31,6 +32,8 @@ export type PaperState = {
   strain: number
   /** True once the paper has torn; the scene plays the separation from here. */
   torn: boolean
+  /** Which rarity the cut shows, set before the pull and read by the tear line. */
+  rarity: Rarity
   time: number
 }
 
@@ -169,7 +172,7 @@ export function createToiletRoll(): ToiletRoll {
       )
     },
 
-    setPaper({ length, sway, strain, torn, time }) {
+    setPaper({ length, sway, strain, torn, rarity, time }) {
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
@@ -228,6 +231,8 @@ export function createToiletRoll(): ToiletRoll {
         y: bodyTopY,
         active: tailLength > 0 && enabled.tearLine && !torn,
         time,
+        strain,
+        rarity,
       })
 
       // The UVs are in segment units, so one texture tile always covers one

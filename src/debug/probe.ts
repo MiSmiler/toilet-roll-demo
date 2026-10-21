@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { Feed } from '../paper/feed'
 import type { PaperParts, ToiletRoll } from '../scene/toiletRoll'
 import { params } from '../params'
+import type { Rarity } from '../scene/rarity'
 
 /** Everything a frame is built from, plus the surface the frame lands on. */
 export type SceneState = {
@@ -11,6 +12,8 @@ export type SceneState = {
   strain: number
   /** True once the paper has torn. */
   torn: boolean
+  /** Which rarity the cut shows, as the lab's radio buttons left it. */
+  rarity: Rarity
   segments: number
   /** Unrolled length in world units. */
   length: number
@@ -61,6 +64,7 @@ export function createProbe({ feed, paper, camera, canvas }: Dependencies): Prob
       progress: feed.progress,
       strain: feed.strain,
       torn: feed.torn,
+      rarity: params.rarity,
       segments: feed.segments,
       length: feed.length,
       segmentLength: params.segmentLength,

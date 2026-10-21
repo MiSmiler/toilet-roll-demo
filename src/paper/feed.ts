@@ -32,7 +32,7 @@ const STRAIN_STIFFNESS = 24
  * it to the tear. Without this floor the first, barely-past-the-end pull is too
  * calm to read as effort.
  */
-const STRAIN_FLOOR = 0.5
+export const STRAIN_FLOOR = 0.5
 
 /** How close to full strain counts as the paper giving way. */
 const TEAR_AT = 0.99

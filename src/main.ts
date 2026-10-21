@@ -39,7 +39,14 @@ stage.onFrame((dt, time) => {
 
   // Faster paper swings harder; standing paper is almost still.
   const sway = params.sway * Math.min(1, feed.speed / 3)
-  paper.setPaper({ length: feed.length, sway, strain: feed.strain, torn: feed.torn, time })
+  paper.setPaper({
+    length: feed.length,
+    sway,
+    strain: feed.strain,
+    torn: feed.torn,
+    rarity: params.rarity,
+    time,
+  })
 
   // The tear is the one frame where the camera gets hit.
   if (feed.torn && !wasTorn) stage.shake()

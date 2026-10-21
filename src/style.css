@@ -140,6 +140,33 @@ body.is-pulling #stage {
   accent-color: #d9d3c4;
 }
 
+.lab__choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.lab__choice > span {
+  color: rgba(244, 241, 233, 0.78);
+}
+
+.lab__choice-group {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.lab__choice-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lab__choice-group input {
+  accent-color: #d9d3c4;
+}
+
 @media (max-width: 720px) {
   .lab {
     left: 12px;

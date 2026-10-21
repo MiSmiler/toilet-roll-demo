@@ -1,5 +1,6 @@
 import type { Probe, SceneState } from '../debug/probe'
 import type { DragParams } from '../params'
+import { RARITIES, type Rarity } from '../scene/rarity'
 
 export type Lab = {
   /** Paints the numbers the last frame was built from. Called every frame. */
@@ -21,9 +22,17 @@ type ToggleKnob = {
   write: (value: boolean) => void
 }
 
+type ChoiceKnob = {
+  label: string
+  options: { value: Rarity; label: string }[]
+  read: () => Rarity
+  write: (value: Rarity) => void
+}
+
 /**
- * Three blocks: what the scene is doing right now, every knob that changes how
- * the pull feels, and which parts of the prop are drawn. The knobs are
+ * Four blocks: what the scene is doing right now, every knob that changes the
+ * pull's feel, which rarity the cut wears, and which parts of the prop are
+ * drawn. The knobs are
  * adjustable live so two versions can be compared without reloading; the
  * readout exists so a scene can be described well enough for a script to
  * reproduce it.
@@ -246,6 +255,18 @@ export function createLab(
 
   for (const knob of toggleKnobs) host.append(createToggleRow(knob))
 
+  // Rarity only changes how the cut looks, so it is not a feel parameter.
+  host.append(createHead('稀有度'))
+
+  const rarityKnob: ChoiceKnob = {
+    label: '本次抽到',
+    options: RARITIES.map((look) => ({ value: look.id, label: look.label })),
+    read: () => params.rarity,
+    write: (value) => (params.rarity = value),
+  }
+
+  host.append(createChoiceRow(rarityKnob))
+
   host.append(createHead('显示'))
 
   const partToggles: ToggleKnob[] = [
@@ -318,6 +339,7 @@ function describeState(state: SceneState): string {
     `progress=${state.progress.toFixed(3)}`,
     `strain=${state.strain.toFixed(3)}`,
     `torn=${state.torn}`,
+    `rarity=${state.rarity}`,
     `segmentLength=${state.segmentLength.toFixed(2)}`,
     `maxSegments=${state.maxSegments}`,
     `length=${state.length.toFixed(2)}`,
@@ -328,6 +350,7 @@ function describeState(state: SceneState): string {
 }
 
 let nextControlId = 1
+let nextChoiceName = 1
 
 function createHead(title: string, action?: HTMLElement): HTMLElement {
   const head = document.createElement('div')
@@ -410,6 +433,39 @@ function createToggleRow(knob: ToggleKnob): HTMLElement {
   text.textContent = knob.label
 
   row.append(checkbox, text)
+  return row
+}
+
+function createChoiceRow(knob: ChoiceKnob): HTMLElement {
+  const row = document.createElement('div')
+  row.className = 'lab__choice'
+
+  const title = document.createElement('span')
+  title.textContent = knob.label
+
+  // Radios sharing a name are one group, so the name has to be unique per row.
+  const groupName = `lab-choice-${nextChoiceName++}`
+  const group = document.createElement('div')
+  group.className = 'lab__choice-group'
+
+  for (const option of knob.options) {
+    const label = document.createElement('label')
+
+    const radio = document.createElement('input')
+    radio.type = 'radio'
+    radio.name = groupName
+    radio.value = option.value
+    radio.checked = knob.read() === option.value
+    radio.addEventListener('change', () => knob.write(option.value))
+
+    const text = document.createElement('span')
+    text.textContent = option.label
+
+    label.append(radio, text)
+    group.append(label)
+  }
+
+  row.append(title, group)
   return row
 }
 
