@@ -18,8 +18,20 @@ const END_FADE = 0.5
 /** Tall enough for the spill to fade out well before the band's edge. */
 const BAND_HEIGHT = 0.24
 
-/** How long the cut takes to open, from the paper outwards. */
-const REVEAL_SECONDS = 0.3
+/** How long the cut takes to run from the paper out to the ends of the beam. */
+const OPENING_SECONDS = 0.5
+
+/**
+ * How hard the cut slows down on its way out. Higher means it leaves the paper
+ * faster and spends longer settling into its ends.
+ */
+const OPENING_SHARPNESS = 3
+
+/**
+ * How much brighter the beam flares as it strikes, over its resting level. The
+ * flare is spent by the time the cut reaches the ends.
+ */
+const STRIKE_FLASH = 0.5
 
 /** White, but a touch cool: next to the paper's own warmth it reads whiter. */
 const CORE_COLOR = '#ffffff'
@@ -40,9 +52,9 @@ export type TearLine = {
  *
  * It is drawn as light rather than as ink: the sheet is nearly white already,
  * so a brighter line is the only thing that can sit on it and still read as
- * something happening to the paper. The beam is additive, so off the sheet it
- * glows against the dark backdrop and over the sheet it simply overexposes —
- * and the perforation underneath stays legible as notches in the light.
+ * something happening to the paper. The beam is screened over the frame, so off
+ * the sheet it glows against the dark backdrop and over the sheet it keeps a
+ * hairline — and the perforation underneath stays legible as notches in it.
  */
 export function createTearLine(): TearLine {
   const width = BEAM_REACH * 2
@@ -52,7 +64,8 @@ export function createTearLine(): TearLine {
     uThickness: { value: CORE_THICKNESS },
     uSpread: { value: GLOW_SPREAD },
     uEndFade: { value: END_FADE },
-    uReveal: { value: 0 },
+    uOpen: { value: 0 },
+    uFlash: { value: 1 },
     uTime: { value: 0 },
     uCore: { value: new THREE.Color(CORE_COLOR) },
     uGlow: { value: new THREE.Color(GLOW_COLOR) },
@@ -93,7 +106,17 @@ export function createTearLine(): TearLine {
       }
 
       appearedAt ??= time
-      uniforms.uReveal.value = Math.min(1, (time - appearedAt) / REVEAL_SECONDS)
+      const progress = Math.min(1, (time - appearedAt) / OPENING_SECONDS)
+      // Fast out of the paper, then easing into the ends: the beam looks released
+      // rather than dragged out at one speed. The flare burns off over the same
+      // curve, which is what lets the beam arrive calm.
+      const eased = 1 - (1 - progress) ** OPENING_SHARPNESS
+
+      // The front has to clear the beam's end and its own soft edge before the
+      // whole length is lit.
+      uniforms.uOpen.value = eased * (BEAM_REACH + 0.2)
+      uniforms.uFlash.value = 1 + STRIKE_FLASH * (1 - eased)
+
       uniforms.uTime.value = time
       object.position.x = x
       object.position.y = y
@@ -116,7 +139,8 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uThickness;
   uniform float uSpread;
   uniform float uEndFade;
-  uniform float uReveal;
+  uniform float uOpen;
+  uniform float uFlash;
   uniform float uTime;
   uniform vec3 uCore;
   uniform vec3 uGlow;
@@ -131,8 +155,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     // The cut opens from the paper outwards, so the first thing the eye gets is
     // the paper lighting up, not a light arriving from off screen.
     float reach = abs(x - uWidth * 0.5);
-    float openTo = uReveal * (uWidth * 0.5 + 0.2);
-    float opening = 1.0 - smoothstep(openTo - 0.12, openTo, reach);
+    float opening = 1.0 - smoothstep(uOpen - 0.12, uOpen, reach);
 
     float fromLine = abs(y);
     float core = 1.0 - smoothstep(uThickness * 0.5, uThickness * 0.5 + fwidth(y), fromLine);
@@ -143,7 +166,7 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     // A slow, shallow flicker keeps it reading as a live beam, not a sticker.
     float flicker = 0.94 + 0.06 * sin(uTime * 3.1);
-    float intensity = opening * ends * flicker * (core * 0.6 + spill * 0.16);
+    float intensity = opening * ends * flicker * uFlash * (core * 0.6 + spill * 0.16);
 
     // Screen blend wants rgb already scaled by its own strength, with that
     // strength carried in alpha.
