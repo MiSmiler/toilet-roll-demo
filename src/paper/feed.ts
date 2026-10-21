@@ -14,6 +14,8 @@ export type Feed = {
    * it. The scene turns it into tremble.
    */
   strain: number
+  /** True once a full-strain pull has ripped the paper; the drag is then ignored. */
+  torn: boolean
   update(target: number, isDragging: boolean, dt: number): void
   /** Puts the paper at an exact progress, with no smoothing and no coasting. */
   settle(progress: number): void
@@ -32,6 +34,9 @@ const STRAIN_STIFFNESS = 24
  */
 const STRAIN_FLOOR = 0.5
 
+/** How close to full strain counts as the paper giving way. */
+const TEAR_AT = 0.99
+
 /**
  * Turns the raw swipe progress into the paper's progress: how tightly it
  * follows, and how it coasts after release.
@@ -40,6 +45,7 @@ export function createFeed(params: DragParams): Feed {
   let progress = 0
   let velocity = 0
   let strain = 0
+  let torn = false
   let phase: Phase = 'idle'
 
   const feed: Feed = {
@@ -48,6 +54,7 @@ export function createFeed(params: DragParams): Feed {
     segments: 0,
     speed: 0,
     strain: 0,
+    torn: false,
 
     settle,
 
@@ -56,6 +63,8 @@ export function createFeed(params: DragParams): Feed {
     },
 
     update(target, isDragging, dt) {
+      if (torn) return
+
       const previous = progress
 
       if (isDragging) {
@@ -85,6 +94,7 @@ export function createFeed(params: DragParams): Feed {
     progress = clamp(next, 0, params.maxProgress)
     velocity = 0
     strain = 0
+    torn = false
     phase = 'idle'
     sync()
   }
@@ -96,6 +106,7 @@ export function createFeed(params: DragParams): Feed {
     feed.segments = Math.floor(progress * params.maxSegments + 1e-6)
     feed.speed = velocity * maxLength
     feed.strain = strain
+    feed.torn = torn
   }
 
   /**
@@ -111,6 +122,22 @@ export function createFeed(params: DragParams): Feed {
     const overshoot = clamp01(dragPastTheEnd / params.strainTravel)
     const strainTarget = stillPulling ? STRAIN_FLOOR + (1 - STRAIN_FLOOR) * overshoot : 0
     strain = approach(strain, strainTarget, STRAIN_STIFFNESS, dt)
+
+    if (stillPulling && tearLineIsClear() && strain >= TEAR_AT) tear()
+  }
+
+  /** The tear can only happen once the ten-segment boundary is off the roll. */
+  function tearLineIsClear(): boolean {
+    const countedLength = params.maxSegments * params.segmentLength
+    const renderLength = progress * countedLength + params.segmentLength
+    return renderLength > countedLength
+  }
+
+  function tear() {
+    torn = true
+    strain = 0
+    velocity = 0
+    phase = 'idle'
   }
 
   return feed

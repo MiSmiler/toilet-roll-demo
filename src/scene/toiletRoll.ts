@@ -3,11 +3,24 @@ import { PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
 import { createTearLine } from './tearLine'
 
-const STRIP_ROWS = 72
-const STRIP_COLUMNS = 2
+/** Rows down the ten-segment piece. The short tail needs far fewer. */
+const BODY_ROWS = 72
+const TAIL_ROWS = 1
+
+/** Columns across the paper: enough for the torn edge to have teeth. */
+const COLUMNS = 16
+
+/** How quickly the jag grows as the tear line leaves the roll. */
+const JAG_RAMP = 0.1
 
 /** Lifts the sheet a hair off the roll so the tangent line never z-fights. */
 const SHEET_OFFSET_Z = PAPER.rollRadius + 0.006
+
+/**
+ * The tear across the paper, sampled left to right. Fixed rather than random so
+ * every run and every screenshot tears the same way.
+ */
+const JAG_PROFILE = createJagProfile(16)
 
 export type PaperState = {
   /** Unrolled length in world units. */
@@ -16,6 +29,8 @@ export type PaperState = {
   sway: number
   /** How hard the pull is straining past the end, 0..1. */
   strain: number
+  /** True once the paper has torn; the scene plays the separation from here. */
+  torn: boolean
   time: number
 }
 
@@ -38,6 +53,10 @@ export type ToiletRoll = {
 /**
  * The prop: a roll seen end-on plus the segment hanging from its front tangent
  * point. Both are driven by one number — the unrolled length.
+ *
+ * The sheet is two ribbons rather than one: the ten-segment piece and the short
+ * tail that stays on the roll. Their torn edges are the same jagged profile, so
+ * while the paper is whole they meet without a seam.
  */
 export function createToiletRoll(): ToiletRoll {
   const object = new THREE.Group()
@@ -52,12 +71,12 @@ export function createToiletRoll(): ToiletRoll {
     roughness: 0.95,
     metalness: 0,
   })
-  const body = new THREE.Mesh(
+  const rollBody = new THREE.Mesh(
     new THREE.CylinderGeometry(PAPER.rollRadius, PAPER.rollRadius, PAPER.width, 72, 1, true),
     rollMaterial,
   )
-  body.rotation.z = Math.PI / 2
-  spinner.add(body)
+  rollBody.rotation.z = Math.PI / 2
+  spinner.add(rollBody)
 
   const coreMaterial = new THREE.MeshStandardMaterial({
     color: 0xc8a878,
@@ -91,22 +110,39 @@ export function createToiletRoll(): ToiletRoll {
     metalness: 0,
     side: THREE.DoubleSide,
   })
-  const sheetGeometry = createSheetGeometry()
-  const sheet = new THREE.Mesh(sheetGeometry, sheetMaterial)
-  // The strip is rewritten every frame, so a stale bounding sphere would cull it.
-  sheet.frustumCulled = false
-  object.add(sheet)
+
+  const bodyGeometry = createRibbonGeometry(BODY_ROWS)
+  const body = new THREE.Mesh(bodyGeometry, sheetMaterial)
+  // The ribbons are rewritten every frame, so stale bounding spheres would cull them.
+  body.frustumCulled = false
+  // The body pivots at its torn top edge, so it can swing away from the roll.
+  const bodyGroup = new THREE.Group()
+  bodyGroup.position.z = SHEET_OFFSET_Z
+  bodyGroup.add(body)
+  object.add(bodyGroup)
+
+  const tailGeometry = createRibbonGeometry(TAIL_ROWS)
+  const tail = new THREE.Mesh(tailGeometry, sheetMaterial)
+  tail.frustumCulled = false
+  object.add(tail)
 
   const tearLine = createTearLine()
   // Fixed in front of the sheet; only its x and y follow the paper.
   tearLine.object.position.z = SHEET_OFFSET_Z + 0.002
   object.add(tearLine.object)
 
-  const sheetPositions = sheetGeometry.attributes.position.array as Float32Array
+  const bodyPositions = bodyGeometry.attributes.position.array as Float32Array
+  const bodyUvs = bodyGeometry.attributes.uv.array as Float32Array
+  const tailPositions = tailGeometry.attributes.position.array as Float32Array
+  const tailUvs = tailGeometry.attributes.uv.array as Float32Array
 
   const enabled: PaperParts = { roll: true, sheet: true, tearLine: true }
   /** Length currently drawn, kept so bounds() can answer without arguments. */
   let drawnLength = params.segmentLength
+  /** How much paper hangs above the ten counted segments, kept for show(). */
+  let tailLength = 0
+  /** Scene time when the tear started, null while the paper is whole. */
+  let tornAt: number | null = null
 
   return {
     object,
@@ -114,27 +150,37 @@ export function createToiletRoll(): ToiletRoll {
     show(parts) {
       Object.assign(enabled, parts)
       spinner.visible = enabled.roll
-      sheet.visible = enabled.sheet
+      body.visible = enabled.sheet
+      tail.visible = enabled.sheet && tailLength > 0
     },
 
     parts: () => ({ ...enabled }),
 
     bounds() {
-      // Wide enough for the sheet's sway, tremble and tilt, deep enough to cover
-      // the roll's curve behind the sheet.
+      // Wide enough for the sheet's sway, tremble and swing, deep enough for the
+      // dropped piece and the roll's curve behind the sheet.
       const margin = params.shake * 3
-      const halfWidth = PAPER.width / 2 + params.sway + margin
+      const drop = tornAt === null ? 0 : params.tearDrop
+      const swingReach = tornAt === null ? 0 : params.tearSwing * drawnLength
+      const halfWidth = PAPER.width / 2 + params.sway + margin + swingReach
       return new THREE.Box3(
-        new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength - margin, -PAPER.rollRadius),
+        new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength - margin - drop, -PAPER.rollRadius),
         new THREE.Vector3(halfWidth, PAPER.rollCenterY + PAPER.rollRadius + margin, SHEET_OFFSET_Z + 0.01),
       )
     },
 
-    setPaper({ length, sway, strain, time }) {
+    setPaper({ length, sway, strain, torn, time }) {
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
       drawnLength = renderLength
+
+      // The tear line is one segment above the ten counted ones. Only once it
+      // clears the roll is there a tail to tear against.
+      const countedLength = params.maxSegments * params.segmentLength
+      tailLength = Math.max(0, renderLength - countedLength)
+      const bodyTopY = -tailLength
+      const bodyLength = renderLength + bodyTopY
 
       // The strain already carries a half-strength floor, so the tremble is
       // visible the moment the paper goes taut and grows from there.
@@ -149,54 +195,64 @@ export function createToiletRoll(): ToiletRoll {
 
       spinner.rotation.x = length / PAPER.rollRadius + tremor(time, 67, 0.9) * 0.015 * effort
 
-      writeSheet(sheetPositions, renderLength, sway, effort, time)
-      sheetGeometry.attributes.position.needsUpdate = true
+      if (torn) {
+        tornAt ??= time
+      } else {
+        tornAt = null
+      }
+      const tearProgress = tornAt === null ? 0 : clamp01((time - tornAt) / params.tearSeconds)
 
-      // Segments are numbered from the free end, so the tear line sits ten
-      // segments above it. It only clears the roll near the end of the pull.
-      const tearY = -(renderLength - params.maxSegments * params.segmentLength)
-      const alongStrip = renderLength > 0 ? -tearY / renderLength : 0
+      // The body pivots at the torn edge. Before the tear it sits exactly under
+      // the tail; after, it snaps away and holds.
+      const tearEase = easeOutSnap(tearProgress)
+      bodyGroup.position.y = bodyTopY - params.tearDrop * tearEase
+      bodyGroup.rotation.z = params.tearSwing * tearEase
+
+      const jag = params.tearJag * clamp01(tailLength / JAG_RAMP)
+
+      // At the tear the body keeps its last shaken shape and stops being
+      // rewritten; from then on it is one rigid piece falling away.
+      if (!torn) {
+        writeBody(bodyPositions, bodyUvs, bodyTopY, bodyLength, renderLength, jag, sway, effort, time)
+        bodyGeometry.attributes.position.needsUpdate = true
+        bodyGeometry.attributes.uv.needsUpdate = true
+      }
+
+      writeTail(tailPositions, tailUvs, bodyTopY, renderLength, jag, sway, effort, time)
+      tailGeometry.attributes.position.needsUpdate = true
+      tailGeometry.attributes.uv.needsUpdate = true
+      tail.visible = enabled.sheet && tailLength > 0
 
       tearLine.update({
-        x: driftAt(alongStrip, sway, time) + sheetTremorAt(alongStrip, effort, time),
-        y: tearY,
-        active: tearY <= 0 && enabled.tearLine,
+        x: sheetOffsetAt(bodyTopY, renderLength, sway, effort, time),
+        y: bodyTopY,
+        active: tailLength > 0 && enabled.tearLine && !torn,
         time,
       })
 
-      // One texture tile per segment keeps the perforations the same physical
-      // size no matter how much paper is out.
-      sheetTexture.repeat.set(1, Math.max(renderLength / params.segmentLength, 0.0001))
+      // The UVs are in segment units, so one texture tile always covers one
+      // segment and the perforations continue across the torn seam.
+      sheetTexture.repeat.set(1, 1)
       const segmentsAround = Math.max(1, Math.round((2 * Math.PI * PAPER.rollRadius) / params.segmentLength))
       rollTexture.repeat.set(segmentsAround, 1)
     },
   }
 }
 
-/**
- * A two-column ribbon. The position buffer is rewritten in place because the
- * strip changes length every frame.
- */
-function createSheetGeometry(): THREE.BufferGeometry {
-  const rowCount = STRIP_ROWS + 1
-  const vertexCount = rowCount * STRIP_COLUMNS
+/** A ribbon with enough columns across to carry a torn edge. */
+function createRibbonGeometry(rows: number): THREE.BufferGeometry {
+  const rowCount = rows + 1
+  const vertexCount = rowCount * COLUMNS
   const positions = new Float32Array(vertexCount * 3)
   const uvs = new Float32Array(vertexCount * 2)
   const indices: number[] = []
 
-  for (let row = 0; row < rowCount; row++) {
-    const v = 1 - row / STRIP_ROWS
-    for (let column = 0; column < STRIP_COLUMNS; column++) {
-      const vertex = row * STRIP_COLUMNS + column
-      uvs[vertex * 2] = column
-      uvs[vertex * 2 + 1] = v
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < COLUMNS - 1; column++) {
+      const topLeft = row * COLUMNS + column
+      const bottomLeft = topLeft + COLUMNS
+      indices.push(topLeft, bottomLeft, topLeft + 1, topLeft + 1, bottomLeft, bottomLeft + 1)
     }
-  }
-
-  for (let row = 0; row < STRIP_ROWS; row++) {
-    const topLeft = row * STRIP_COLUMNS
-    const bottomLeft = topLeft + STRIP_COLUMNS
-    indices.push(topLeft, bottomLeft, topLeft + 1, topLeft + 1, bottomLeft, bottomLeft + 1)
   }
 
   const geometry = new THREE.BufferGeometry()
@@ -206,26 +262,116 @@ function createSheetGeometry(): THREE.BufferGeometry {
   return geometry
 }
 
-function writeSheet(
+/**
+ * The ten-segment piece. It lives in `bodyGroup`, whose origin is the torn edge,
+ * so the top row is the jagged edge and the bottom row is the free end.
+ */
+function writeBody(
   positions: Float32Array,
-  length: number,
+  uvs: Float32Array,
+  bodyTopY: number,
+  bodyLength: number,
+  renderLength: number,
+  jag: number,
   sway: number,
   effort: number,
   time: number,
 ) {
-  const halfWidth = PAPER.width / 2
+  for (let row = 0; row <= BODY_ROWS; row++) {
+    const alongBody = row / BODY_ROWS
 
-  for (let row = 0; row <= STRIP_ROWS; row++) {
-    const alongStrip = row / STRIP_ROWS
-    const shift = driftAt(alongStrip, sway, time) + sheetTremorAt(alongStrip, effort, time)
+    for (let column = 0; column < COLUMNS; column++) {
+      const across = column / (COLUMNS - 1)
+      // Only the top row wanders: it is the edge the paper tore along.
+      const jagOffset = row === 0 ? jagAt(across) * jag : 0
+      const localY = -bodyLength * alongBody + jagOffset
+      const absoluteY = bodyTopY + localY
+      const shift = sheetOffsetAt(absoluteY, renderLength, sway, effort, time)
+      const vertex = row * COLUMNS + column
+      const offset = vertex * 3
 
-    for (let column = 0; column < STRIP_COLUMNS; column++) {
-      const offset = (row * STRIP_COLUMNS + column) * 3
-      positions[offset] = (column === 0 ? -halfWidth : halfWidth) + shift
-      positions[offset + 1] = -length * alongStrip
-      positions[offset + 2] = SHEET_OFFSET_Z
+      positions[offset] = -PAPER.width / 2 + PAPER.width * across + shift
+      positions[offset + 1] = localY
+      positions[offset + 2] = 0
+
+      uvs[vertex * 2] = across
+      uvs[vertex * 2 + 1] = (renderLength + absoluteY) / params.segmentLength
     }
   }
+}
+
+/**
+ * The short tail still on the roll. Its bottom row is the same jagged edge as
+ * the body's top row, so the two ribbons meet while the paper is whole.
+ */
+function writeTail(
+  positions: Float32Array,
+  uvs: Float32Array,
+  bodyTopY: number,
+  renderLength: number,
+  jag: number,
+  sway: number,
+  effort: number,
+  time: number,
+) {
+  for (let row = 0; row <= TAIL_ROWS; row++) {
+    const alongTail = row / TAIL_ROWS
+
+    for (let column = 0; column < COLUMNS; column++) {
+      const across = column / (COLUMNS - 1)
+      // The bottom row is the torn edge; the top row stays at the roll.
+      const jagOffset = row === TAIL_ROWS ? jagAt(across) * jag : 0
+      const absoluteY = bodyTopY * alongTail + jagOffset
+      const shift = sheetOffsetAt(absoluteY, renderLength, sway, effort, time)
+      const vertex = row * COLUMNS + column
+      const offset = vertex * 3
+
+      positions[offset] = -PAPER.width / 2 + PAPER.width * across + shift
+      positions[offset + 1] = absoluteY
+      positions[offset + 2] = SHEET_OFFSET_Z
+
+      uvs[vertex * 2] = across
+      uvs[vertex * 2 + 1] = (renderLength + absoluteY) / params.segmentLength
+    }
+  }
+}
+
+/** The sheet's sideways shift at a point, measured from the top of the drawn paper. */
+function sheetOffsetAt(
+  absoluteY: number,
+  renderLength: number,
+  sway: number,
+  effort: number,
+  time: number,
+): number {
+  const alongStrip = renderLength > 0 ? clamp01(-absoluteY / renderLength) : 0
+  return driftAt(alongStrip, sway, time) + sheetTremorAt(alongStrip, effort, time)
+}
+
+/**
+ * The torn profile's fixed sample points. Alternating directions give the edge
+ * its teeth; the seeded noise keeps the teeth from looking machined.
+ */
+function createJagProfile(teeth: number): number[] {
+  let seed = 7
+  const profile = [0]
+
+  for (let i = 1; i <= teeth; i++) {
+    seed = (seed * 9301 + 49297) % 233280
+    const noise = seed / 233280
+    const direction = i % 2 === 0 ? 1 : -1
+    profile.push(direction * (0.45 + 0.55 * noise))
+  }
+
+  return profile
+}
+
+/** The torn edge at `across` (0..1), roughly -1..1. */
+function jagAt(across: number): number {
+  const position = across * (JAG_PROFILE.length - 1)
+  const index = Math.min(JAG_PROFILE.length - 2, Math.floor(position))
+  const blend = position - index
+  return JAG_PROFILE[index] * (1 - blend) + JAG_PROFILE[index + 1] * blend
 }
 
 /**
@@ -247,4 +393,13 @@ function sheetTremorAt(alongStrip: number, effort: number, time: number): number
 /** The far end travels the most, which reads as the loose end swinging. */
 function driftAt(alongStrip: number, sway: number, time: number): number {
   return Math.sin(alongStrip * 4.2 + time * 1.9) * sway * alongStrip ** 1.5
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+/** A rip leaves immediately and settles: fast at the start, calm at the end. */
+function easeOutSnap(t: number): number {
+  return 1 - (1 - t) ** 3
 }

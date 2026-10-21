@@ -48,6 +48,8 @@ export function createLab(
   strainBar.append(strainFill)
   strain.row.append(strainBar)
 
+  const torn = createReadout('撕裂')
+
   const segments = createReadout('段数')
   const length = createReadout('长度')
   const surface = createReadout('窗口')
@@ -59,6 +61,7 @@ export function createLab(
     createHead('状态', copyButton),
     percent.row,
     strain.row,
+    torn.row,
     segments.row,
     length.row,
     surface.row,
@@ -141,6 +144,38 @@ export function createLab(
       read: () => params.shake,
       write: (value) => (params.shake = value),
     },
+    {
+      label: '撕裂锯齿',
+      min: 0.005,
+      max: 0.08,
+      step: 0.005,
+      read: () => params.tearJag,
+      write: (value) => (params.tearJag = value),
+    },
+    {
+      label: '撕裂下落',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      read: () => params.tearDrop,
+      write: (value) => (params.tearDrop = value),
+    },
+    {
+      label: '撕裂摆角',
+      min: 0,
+      max: 0.12,
+      step: 0.005,
+      read: () => params.tearSwing,
+      write: (value) => (params.tearSwing = value),
+    },
+    {
+      label: '撕裂用时',
+      min: 0.1,
+      max: 1.5,
+      step: 0.05,
+      read: () => params.tearSeconds,
+      write: (value) => (params.tearSeconds = value),
+    },
   ]
 
   for (const knob of numberKnobs) host.append(createNumberRow(knob))
@@ -193,10 +228,11 @@ export function createLab(
     showState(state) {
       const percentText = `${Math.round(state.progress * 100)}%`
       const strainText = `${Math.round(state.strain * 100)}%`
+      const tornText = state.torn ? '是' : '否'
       const segmentsText = `${state.segments} / ${state.maxSegments}`
       const lengthText = state.length.toFixed(2)
       const surfaceText = `${state.viewport.width} × ${state.viewport.height} @ ${state.devicePixelRatio}`
-      const summary = [percentText, strainText, segmentsText, lengthText, surfaceText].join(' ')
+      const summary = [percentText, strainText, tornText, segmentsText, lengthText, surfaceText].join(' ')
 
       // This runs every frame, and the paper moves in sub-percent steps.
       if (summary === shown) return
@@ -207,6 +243,7 @@ export function createLab(
       barFill.style.width = percentText
       strain.value.textContent = strainText
       strainFill.style.width = strainText
+      torn.value.textContent = tornText
       segments.value.textContent = segmentsText
       length.value.textContent = lengthText
       surface.value.textContent = surfaceText
@@ -224,6 +261,7 @@ function describeState(state: SceneState): string {
   return [
     `progress=${state.progress.toFixed(3)}`,
     `strain=${state.strain.toFixed(3)}`,
+    `torn=${state.torn}`,
     `segmentLength=${state.segmentLength.toFixed(2)}`,
     `maxSegments=${state.maxSegments}`,
     `length=${state.length.toFixed(2)}`,

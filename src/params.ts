@@ -19,6 +19,14 @@ export type DragParams = {
   strainTravel: number
   /** Peak tremble, in world units, at full strain. */
   shake: number
+  /** How far the torn edge wanders across the paper, in world units. */
+  tearJag: number
+  /** How far the ten-segment piece drops after it tears free, in world units. */
+  tearDrop: number
+  /** How far the piece swings from its torn edge, in radians. */
+  tearSwing: number
+  /** How long the piece takes to snap free; it then holds its dropped pose. */
+  tearSeconds: number
 }
 
 export const params: DragParams = {
@@ -32,6 +40,10 @@ export const params: DragParams = {
   sway: 0.022,
   strainTravel: 0.3,
   shake: 0.012,
+  tearJag: 0.03,
+  tearDrop: 0.6,
+  tearSwing: 0.04,
+  tearSeconds: 0.2,
 }
 
 /** Perforations wrapped around the roll. */
