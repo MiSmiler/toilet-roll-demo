@@ -1,43 +1,54 @@
 export type Pull = {
-  /** Accumulated downward drag in screen pixels. */
-  pixels: number
+  /** Progress the paper should follow, 0..1. */
+  target: number
   isDragging: boolean
   reset(): void
 }
 
+export type PullSource = {
+  /** Where the paper sits right now. A new gesture continues from here. */
+  progress(): number
+  /** Screen pixels of downward drag that make a full pull. */
+  pixelsPerFullPull(): number
+}
+
 /**
- * Turns pointer movement anywhere on the surface into one scalar: how far the
- * user has dragged downwards. Knows nothing about paper.
+ * Turns pointer movement anywhere on the surface into the progress the paper
+ * should follow. A gesture starts from wherever the paper actually sits, and
+ * travel past either end is dropped as it happens — otherwise the pointer runs
+ * up a debt that the paper has to pay off before it moves again.
  */
-export function trackPull(surface: HTMLElement): Pull {
-  let lastPointer: { x: number; y: number } | null = null
+export function trackPull(surface: HTMLElement, source: PullSource): Pull {
+  let lastY: number | null = null
 
   const pull: Pull = {
-    pixels: 0,
+    target: 0,
     isDragging: false,
     reset() {
-      lastPointer = null
-      pull.pixels = 0
+      lastY = null
+      pull.target = 0
       pull.isDragging = false
     },
   }
 
   surface.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return
-    lastPointer = { x: event.clientX, y: event.clientY }
+    lastY = event.clientY
+    pull.target = source.progress()
     pull.isDragging = true
     surface.setPointerCapture(event.pointerId)
     document.body.classList.add('is-pulling')
   })
 
   surface.addEventListener('pointermove', (event) => {
-    if (!lastPointer) return
-    pull.pixels += event.clientY - lastPointer.y
-    lastPointer = { x: event.clientX, y: event.clientY }
+    if (lastY === null) return
+    const travel = event.clientY - lastY
+    lastY = event.clientY
+    pull.target = clamp(pull.target + travel / source.pixelsPerFullPull(), 0, 1)
   })
 
   const endPull = () => {
-    lastPointer = null
+    lastY = null
     pull.isDragging = false
     document.body.classList.remove('is-pulling')
   }
@@ -45,4 +56,8 @@ export function trackPull(surface: HTMLElement): Pull {
   surface.addEventListener('pointercancel', endPull)
 
   return pull
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }

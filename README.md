@@ -16,7 +16,7 @@ npm run dev
 
 - `src/params.ts` — 所有可调参数。`PAPER` 是道具的固定尺寸，`params` 是手感参数。
 - `src/paper/feed.ts` — 手感的核心：拖动距离怎么变成纸带长度，松手之后发生什么。
-- `src/input/drag.ts` — pointer 事件折成一个标量「拉了多少像素」，不碰纸。
+- `src/input/drag.ts` — pointer 事件折成「纸带该到的进度」，从纸带当前位置起算。
 - `src/scene/` — Three.js 场景、纸张贴图、卷纸与纸带几何。
 - `src/ui/lab.ts` — 左下角的参数面板。
 
