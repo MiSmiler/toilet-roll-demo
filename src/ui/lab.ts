@@ -37,6 +37,14 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
 
   const numberKnobs: NumberKnob[] = [
     {
+      label: '拉满所需屏数',
+      min: 0.4,
+      max: 3,
+      step: 0.1,
+      read: () => params.dragScreenHeights,
+      write: (value) => (params.dragScreenHeights = value),
+    },
+    {
       label: '跟手刚度',
       min: 4,
       max: 80,
@@ -90,16 +98,6 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
       label: '松手吸附到格位',
       read: () => params.snapOnRelease,
       write: (value) => (params.snapOnRelease = value),
-    },
-    {
-      label: '显示起点区域',
-      read: () => params.showStartZone,
-      write: (value) => (params.showStartZone = value),
-    },
-    {
-      label: '显示终点标记',
-      read: () => params.showEndPoint,
-      write: (value) => (params.showEndPoint = value),
     },
   ]
 

@@ -1,4 +1,4 @@
-// Boots the dev server, swipes with real pointer events, and writes a few
+// Boots the dev server, drags with real pointer events, and writes a few
 // frames to .scratch/screenshot/. Nothing here ships with the app; it exists so
 // a change to the feel can be checked without a human at the screen first.
 import { mkdir } from 'node:fs/promises'
@@ -8,9 +8,10 @@ import { createServer } from 'vite'
 const OUTPUT_DIR = '.scratch/screenshot'
 const VIEWPORT = { width: 1280, height: 800 }
 
-// Mirrors GESTURE in src/params.ts: start inside the paper's column, end at 4/5.
-const SWIPE_START = { x: 640, y: 250 }
-const SWIPE_END = { x: VIEWPORT.width * 0.5, y: VIEWPORT.height * 0.8 }
+const DRAG_START = { x: 640, y: 140 }
+// One screen height of travel is a full pull, so half of it is five segments.
+const HALF_PULL_Y = DRAG_START.y + VIEWPORT.height * 0.5
+const FULL_PULL_Y = DRAG_START.y + VIEWPORT.height
 
 await mkdir(OUTPUT_DIR, { recursive: true })
 
@@ -32,28 +33,22 @@ try {
 
   await capture('00-rest')
 
-  // Hold the button down so the frame shows the paper mid-swipe, not settled.
-  await page.mouse.move(SWIPE_START.x, SWIPE_START.y)
+  // Hold the button down so the frame shows the paper mid-drag, not settled.
+  await page.mouse.move(DRAG_START.x, DRAG_START.y)
   await page.mouse.down()
-  await page.mouse.move(SWIPE_START.x, (SWIPE_START.y + SWIPE_END.y) / 2, { steps: 24 })
-  await page.waitForTimeout(150)
+  await page.mouse.move(DRAG_START.x, HALF_PULL_Y, { steps: 30 })
+  // Steps land on rounded pixels, so finish on the exact point.
+  await page.mouse.move(DRAG_START.x, HALF_PULL_Y)
+  await page.waitForTimeout(500)
   await capture('01-half')
 
-  await page.mouse.move(SWIPE_START.x, SWIPE_END.y + 40, { steps: 24 })
+  await page.mouse.move(DRAG_START.x, FULL_PULL_Y, { steps: 30 })
   await page.waitForTimeout(250)
   await capture('02-full')
 
   await page.mouse.up()
   await page.waitForTimeout(800)
   await capture('03-released')
-
-  await page.getByLabel('显示起点区域').check()
-  await page.waitForTimeout(100)
-  await capture('04-start-zone')
-
-  await page.getByLabel('显示终点标记').uncheck()
-  await page.waitForTimeout(100)
-  await capture('05-no-guides')
 } finally {
   await browser.close()
   await server.close()
