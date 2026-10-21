@@ -94,11 +94,6 @@ export function createLab(params: DragParams, host: HTMLElement, onReset: () => 
       read: () => params.allowRewind,
       write: (value) => (params.allowRewind = value),
     },
-    {
-      label: '松手吸附到格位',
-      read: () => params.snapOnRelease,
-      write: (value) => (params.snapOnRelease = value),
-    },
   ]
 
   for (const knob of toggleKnobs) host.append(createToggleRow(knob))

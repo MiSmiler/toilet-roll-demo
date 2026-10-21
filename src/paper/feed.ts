@@ -16,7 +16,7 @@ type Phase = 'idle' | 'dragging' | 'coasting'
 
 /**
  * Turns the raw swipe progress into the paper's progress: how tightly it
- * follows, what it does on release, and where it settles.
+ * follows, and how it coasts after release.
  */
 export function createFeed(params: DragParams): Feed {
   let progress = 0
@@ -54,11 +54,6 @@ export function createFeed(params: DragParams): Feed {
           velocity = 0
           phase = 'idle'
         }
-      }
-
-      if (phase === 'idle' && params.snapOnRelease) {
-        const nearestStep = Math.round(progress * params.maxSegments) / params.maxSegments
-        progress = approach(progress, nearestStep, 9, dt)
       }
 
       progress = clamp(progress, 0, 1)
