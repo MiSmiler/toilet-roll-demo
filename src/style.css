@@ -89,6 +89,15 @@ body.is-pulling #stage {
   background: rgba(244, 241, 233, 0.1);
 }
 
+/* The one action that undoes the whole session, standing on its own. */
+.lab__reset {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
 .lab__row {
   display: grid;
   grid-template-columns: 1fr auto;

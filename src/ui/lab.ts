@@ -265,7 +265,11 @@ export function createLab(
     },
   ]
 
+  const resetButton = createPillButton('重置纸带', onReset)
+  resetButton.classList.add('lab__reset')
+
   host.append(
+    resetButton,
     createHead('稀有度'),
     createChoiceRow(rarityKnob),
     createHead('显示'),
@@ -277,7 +281,7 @@ export function createLab(
     segments.row,
     length.row,
     surface.row,
-    createHead('手感参数', createPillButton('重置纸带', onReset)),
+    createHead('手感参数'),
     ...numberKnobs.map(createNumberRow),
     ...toggleKnobs.map(createToggleRow),
   )
