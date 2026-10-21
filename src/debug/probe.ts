@@ -45,6 +45,11 @@ export type Probe = {
    */
   freezeTime(at: number | null): void
   show(parts: Partial<PaperParts>): void
+  /**
+   * Pins how far into the tear's flood the frame is, or lets it run again with
+   * null. Like freezeTime, a script's knob only.
+   */
+  holdBurst(seconds: number | null): void
   /** Where the paper lands on the page, in CSS pixels — the unit a screenshot clip takes. */
   paperRect(): Rect
 }
@@ -95,6 +100,8 @@ export function createProbe({ feed, paper, camera, canvas, freezeTime }: Depende
     freezeTime,
 
     show: (parts) => paper.show(parts),
+
+    holdBurst: (seconds) => paper.holdBurst(seconds),
 
     paperRect: () => projectBox(paper.bounds(), camera, canvas),
   }

@@ -263,8 +263,11 @@ const VERTEX_SHADER = /* glsl */ `
   }
 `
 
-/** Shared by both light shaders: one seam cannot be uneven two different ways. */
-const UNEVEN_GLSL = /* glsl */ `
+/**
+ * Shared by both light shaders, and by the burst that follows them: one seam
+ * cannot be uneven two different ways, before or after it opens.
+ */
+export const UNEVEN_GLSL = /* glsl */ `
   float hash(float n) {
     return fract(sin(n * 127.1) * 43758.5453);
   }

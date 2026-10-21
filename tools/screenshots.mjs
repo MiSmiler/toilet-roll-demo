@@ -25,6 +25,10 @@
 // `--off` unticks effect switches by their lab label ("粒子特效,蓄力光晕"), the way
 // a human would, so the same frame can be shot with an effect on and off.
 //
+// `--burst 0,0.15,0.4,1` shoots the tear's flood at those ages, in seconds since
+// the paper gave way. It needs `--drag` past the tear (~1.3 screen heights),
+// because only a real drag can tear the paper.
+//
 // `--drag` takes the live path instead: it holds a real drag of that many screen
 // heights and shoots the frame while the pointer is still down. Past about 1.25
 // the paper tears, which a scripted strain cannot do.
@@ -49,6 +53,7 @@ const { values: options } = parseArgs({
     rarity: { type: 'string' },
     time: { type: 'string' },
     drag: { type: 'string' },
+    burst: { type: 'string' },
     hide: { type: 'string' },
     off: { type: 'string' },
     crop: { type: 'string', default: 'full' },
@@ -61,6 +66,7 @@ const dpr = Number(options.dpr)
 
 const strains = listOf(options.strain).map(Number)
 const rarities = listOf(options.rarity)
+const bursts = listOf(options.burst).map(Number)
 const isList = strains.length > 1 || rarities.length > 1
 
 // A held strain only means something with the paper pulled out to where the cut
@@ -68,6 +74,9 @@ const isList = strains.length > 1 || rarities.length > 1
 // need it for the same reason, and because each one has to be a still frame.
 if (strains.length > 0 && options.progress === undefined) {
   throw new Error('--strain also needs --progress, e.g. 0.95, so the beam is on screen')
+}
+if (bursts.length > 0 && options.drag === undefined) {
+  throw new Error('--burst needs --drag past the tear, e.g. --drag 1.4')
 }
 if (isList && options.progress === undefined) {
   throw new Error('a list of --strain or --rarity needs --progress, so every frame is a still')
@@ -170,6 +179,8 @@ async function runDragScript() {
  * strain pins the frame and never runs the feed.
  */
 async function runLiveDrag(screenHeights) {
+  if (rarities.length > 0) await pickRarity(rarities[0])
+
   const start = { x: width / 2, y: Math.round(height * 0.175) }
   const endY = Math.round(start.y + height * screenHeights)
 
@@ -178,7 +189,20 @@ async function runLiveDrag(screenHeights) {
   await page.mouse.move(start.x, endY, { steps: 40 })
   await page.mouse.move(start.x, endY)
   await page.waitForTimeout(700)
-  await capture(`${options.desc}-drag${screenHeights}`)
+
+  if (bursts.length === 0) {
+    await capture(`${options.desc}-drag${screenHeights}`)
+  } else {
+    const shots = []
+    for (const age of bursts) {
+      await page.evaluate((seconds) => window.debug.holdBurst(seconds), age)
+      // The age is pinned, so two frames are enough for it to land.
+      await page.waitForTimeout(200)
+      shots.push(await capture(`${options.desc}-burst${age}`, `${age}s`))
+    }
+    if (shots.length > 1) await writeSheet(shots)
+  }
+
   await page.mouse.up()
 }
 
