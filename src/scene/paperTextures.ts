@@ -1,56 +1,82 @@
 import * as THREE from 'three'
+import { PAPER, params } from '../params'
 
 /**
- * One segment of toilet paper: a plain sheet with a dashed perforation along
- * its upper edge. Tiling this along the strip puts a perforation exactly on
- * every segment boundary.
+ * Both paper textures draw one texel per this many world units, so a
+ * perforation comes out the same physical size on the roll and on the sheet,
+ * and the roll's copy of it can continue the sheet's line at the join.
+ */
+const TEXELS_PER_UNIT = 256
+
+/** One segment across the paper, and one segment along it, in texels. */
+const ACROSS = Math.round(PAPER.width * TEXELS_PER_UNIT)
+const ALONG = Math.round(params.segmentLength * TEXELS_PER_UNIT)
+
+/** One dash of a perforation, in texels, so both papers stay in step. */
+const PERFORATION = {
+  color: 'rgba(146, 136, 120, 0.5)',
+  width: 2.5,
+  dash: [7, 8],
+}
+
+/**
+ * One segment of toilet paper: a plain sheet with a perforation along its upper
+ * tile edge.
  *
- * The dash sits at the top of the tile, not the bottom, because snapped
- * lengths are whole segments: the boundary then lands exactly on the join with
- * the roll, and a dash at the bottom of the tile would be clipped away there,
- * leaving a whole segment of blank paper at the join.
+ * The line straddles the tile edge on purpose, so each neighbouring tile draws
+ * half of it and the two halves join into one dash across the boundary. That is
+ * what lets the roll's own perforation pick the line up at the join: both are
+ * the same physical line, drawn once on either side of it.
  */
 export function createSheetTexture(): THREE.Texture {
   const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 205
+  canvas.width = ACROSS
+  canvas.height = ALONG
   const ctx = canvas.getContext('2d')!
 
   paintPaper(ctx, canvas.width, canvas.height)
 
-  ctx.strokeStyle = 'rgba(146, 136, 120, 0.5)'
-  ctx.lineWidth = 2.5
-  ctx.setLineDash([7, 8])
+  ctx.strokeStyle = PERFORATION.color
+  ctx.lineWidth = PERFORATION.width
+  ctx.setLineDash(PERFORATION.dash)
   ctx.beginPath()
-  ctx.moveTo(0, 5)
-  ctx.lineTo(canvas.width, 5)
+  for (const y of [0, canvas.height]) {
+    ctx.moveTo(0, y)
+    ctx.lineTo(canvas.width, y)
+  }
   ctx.stroke()
 
   return finishTexture(canvas, 8)
 }
 
 /**
- * The same idea for the roll: perforations run parallel to the roll axis, so
- * the tile carries one vertical dashed line and is repeated around the
- * circumference.
+ * The same paper wrapped on the roll. Perforations run parallel to the roll's
+ * axis, so the tile carries them on its left and right edges and repeats around
+ * the circumference.
+ *
+ * A perforation at u = 0 is also what the roll turns to the tangent: one whole
+ * segment of feed is a quarter turn, which brings the next perforation exactly
+ * where the previous one left, so the join never falls between two of them.
  */
 export function createRollTexture(): THREE.Texture {
   const canvas = document.createElement('canvas')
-  canvas.width = 64
-  canvas.height = 256
+  canvas.width = ALONG
+  canvas.height = ACROSS
   const ctx = canvas.getContext('2d')!
 
   paintPaper(ctx, canvas.width, canvas.height)
 
-  ctx.strokeStyle = 'rgba(146, 136, 120, 0.42)'
-  ctx.lineWidth = 2
-  ctx.setLineDash([6, 9])
+  ctx.strokeStyle = PERFORATION.color
+  ctx.lineWidth = PERFORATION.width
+  ctx.setLineDash(PERFORATION.dash)
   ctx.beginPath()
-  ctx.moveTo(3, 0)
-  ctx.lineTo(3, canvas.height)
+  for (const x of [0, canvas.width]) {
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, canvas.height)
+  }
   ctx.stroke()
 
-  return finishTexture(canvas, 4)
+  return finishTexture(canvas, 8)
 }
 
 /**

@@ -13,12 +13,6 @@ const TEAR_LINE_WIDTH = PAPER.width * 1.5
 const TEAR_LINE_HEIGHT = 0.03
 const TEAR_DASH_PERIOD = 0.36
 
-/**
- * Turns the roll so one of its perforations sits exactly where the sheet leaves
- * it, and the two read as one line instead of two that are almost touching.
- */
-const ROLL_PHASE = 0.18
-
 export type PaperState = {
   /** Unrolled length in world units. */
   length: number
@@ -158,7 +152,7 @@ export function createToiletRoll(): ToiletRoll {
       const renderLength = length + params.segmentLength
       drawnLength = renderLength
 
-      spinner.rotation.x = length / PAPER.rollRadius + ROLL_PHASE
+      spinner.rotation.x = length / PAPER.rollRadius
 
       writeSheet(sheetPositions, renderLength, sway, time)
       sheetGeometry.attributes.position.needsUpdate = true
