@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { effects, PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
+import { createTearBurst } from './tearBurst'
 import { createTearLine } from './tearLine'
 import type { Rarity } from './rarity'
 
@@ -54,6 +55,8 @@ export type ToiletRoll = {
   parts(): PaperParts
   /** World box the prop can occupy now; generous on purpose, see the call site. */
   bounds(): THREE.Box3
+  /** Pins how far into the tear's flood a script wants the frame, or lets it run. */
+  holdBurst(seconds: number | null): void
 }
 
 /**
@@ -137,6 +140,11 @@ export function createToiletRoll(): ToiletRoll {
   tearLine.object.position.z = SHEET_OFFSET_Z + 0.002
   object.add(tearLine.object)
 
+  // The burst takes over from the seam the instant the paper gives way, and
+  // holds the frame until the next act arrives.
+  const burst = createTearBurst()
+  object.add(burst.object)
+
   const bodyPositions = bodyGeometry.attributes.position.array as Float32Array
   const bodyUvs = bodyGeometry.attributes.uv.array as Float32Array
   const tailPositions = tailGeometry.attributes.position.array as Float32Array
@@ -161,6 +169,8 @@ export function createToiletRoll(): ToiletRoll {
     },
 
     parts: () => ({ ...enabled }),
+
+    holdBurst: (seconds) => burst.holdAt(seconds),
 
     bounds() {
       // Wide enough for the sheet's sway, tremble and swing, deep enough for the
@@ -233,8 +243,10 @@ export function createToiletRoll(): ToiletRoll {
       tailGeometry.attributes.uv.needsUpdate = true
       tail.visible = enabled.sheet && tailLength > 0
 
+      const seamX = sheetOffsetAt(bodyTopY, renderLength, sway, effort, time)
+
       tearLine.update({
-        x: sheetOffsetAt(bodyTopY, renderLength, sway, effort, time),
+        x: seamX,
         y: bodyTopY,
         active: tailLength > 0 && enabled.tearLine && !torn,
         time,
@@ -242,6 +254,10 @@ export function createToiletRoll(): ToiletRoll {
         strain,
         rarity,
       })
+
+      // The crack keeps its place while the piece drops away, so the flood
+      // leaves from where the paper actually broke.
+      burst.update({ x: seamX, y: bodyTopY, torn, dt, rarity })
 
       // The UVs are in segment units, so one texture tile always covers one
       // segment and the perforations continue across the torn seam.

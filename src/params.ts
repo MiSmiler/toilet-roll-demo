@@ -85,6 +85,8 @@ export type Effects = {
   bloom: boolean
   /** The charge's shadow, multiplied over the prop as the seam opens. */
   shadow: boolean
+  /** The flood of light that leaves the crack when the paper gives way. */
+  burst: boolean
   /** Motes and sparks thrown out of the seam. */
   particles: boolean
   /** The paper's tremble under strain, and the roll's jitter as it feeds. */
@@ -100,6 +102,7 @@ export type Effects = {
 export const effects: Effects = {
   bloom: true,
   shadow: true,
+  burst: true,
   particles: true,
   paperTremble: true,
   cameraShake: true,
