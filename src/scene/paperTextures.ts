@@ -2,8 +2,13 @@ import * as THREE from 'three'
 
 /**
  * One segment of toilet paper: a plain sheet with a dashed perforation along
- * its lower edge. Tiling this along the strip puts a perforation exactly on
+ * its upper edge. Tiling this along the strip puts a perforation exactly on
  * every segment boundary.
+ *
+ * The dash sits at the top of the tile, not the bottom, because snapped
+ * lengths are whole segments: the boundary then lands exactly on the join with
+ * the roll, and a dash at the bottom of the tile would be clipped away there,
+ * leaving a whole segment of blank paper at the join.
  */
 export function createSheetTexture(): THREE.Texture {
   const canvas = document.createElement('canvas')
@@ -17,8 +22,8 @@ export function createSheetTexture(): THREE.Texture {
   ctx.lineWidth = 2.5
   ctx.setLineDash([7, 8])
   ctx.beginPath()
-  ctx.moveTo(0, canvas.height - 5)
-  ctx.lineTo(canvas.width, canvas.height - 5)
+  ctx.moveTo(0, 5)
+  ctx.lineTo(canvas.width, 5)
   ctx.stroke()
 
   return finishTexture(canvas, 8)

@@ -1,11 +1,3 @@
-/** Fixed geometry of the prop. Sized so one segment reads as 5:4. */
-export const PAPER = {
-  width: 1.0,
-  rollRadius: 0.5,
-  coreRadius: 0.18,
-  rollCenterY: 1.9,
-}
-
 export type DragParams = {
   /** How many screen heights of downward drag count as a full pull. */
   dragScreenHeights: number
@@ -30,4 +22,21 @@ export const params: DragParams = {
   segmentLength: 0.8,
   maxSegments: 10,
   sway: 0.022,
+}
+
+/** Perforations wrapped around the roll. */
+const SEGMENTS_AROUND_ROLL = 4
+
+/**
+ * Fixed geometry of the prop. Sized so one segment reads as 5:4.
+ *
+ * The circumference is a whole number of segments, which is what keeps the
+ * roll's perforations landing on the sheet's at every snapped length — the
+ * roll always turns by exactly one perforation per segment fed.
+ */
+export const PAPER = {
+  width: 1.0,
+  rollRadius: (SEGMENTS_AROUND_ROLL * params.segmentLength) / (2 * Math.PI),
+  coreRadius: 0.18,
+  rollCenterY: 1.9,
 }
