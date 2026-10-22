@@ -1,13 +1,12 @@
 import * as THREE from 'three'
-import type { FrameWash } from '../scene/tearBurst'
 import { findRarity, type Rarity } from '../scene/rarity'
 
 export type Whiteout = {
   /**
-   * Lays the tear's wash over the screen in `rarity`'s own colour, or takes the
-   * layer away again when there is no wash to show.
+   * Lays the tear's screen over the page in `rarity`'s own colour, or takes the
+   * layer away again when there is no screen to show.
    */
-  set(wash: FrameWash | null, rarity: Rarity): void
+  set(screen: { cover: number; bleach: number } | null, rarity: Rarity): void
 }
 
 /**
@@ -25,18 +24,18 @@ export function createWhiteout(host: HTMLElement): Whiteout {
   let shown = ''
 
   return {
-    set(wash, rarity) {
-      const coverage = wash?.coverage ?? 0
-      const bleach = wash?.bleach ?? 0
+    set(screen, rarity) {
+      const cover = screen?.cover ?? 0
+      const bleach = screen?.bleach ?? 0
       const colour = findRarity(rarity).glow.clone().lerp(white, bleach)
       const background = `#${colour.getHexString()}`
-      const key = `${background} ${coverage.toFixed(3)}`
+      const key = `${background} ${cover.toFixed(3)}`
 
       // This runs every frame, and only the last two thirds of a second change it.
       if (key === shown) return
       shown = key
       host.style.background = background
-      host.style.opacity = coverage.toFixed(3)
+      host.style.opacity = cover.toFixed(3)
     },
   }
 }

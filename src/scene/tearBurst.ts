@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { effects } from '../params'
+import type { TearBeat } from '../tear/timeline'
 import { findRarity, type Rarity } from './rarity'
 import { SPECTRUM_GLSL, UNEVEN_GLSL } from './tearLine'
 
@@ -8,12 +9,6 @@ import { SPECTRUM_GLSL, UNEVEN_GLSL } from './tearLine'
  * side, so it is drawn on the same 26-unit sheet the charge's shadow uses.
  */
 const SIZE = 26
-
-/** How long the light takes to cross the frame. */
-const FLOOD_SECONDS = 0.75
-
-/** It leaves the crack fast and arrives slowly, like a wave losing its push. */
-const FLOOD_SHARPNESS = 2.0
 
 /**
  * Where the front starts and ends, measured through the squeezed frame the
@@ -24,26 +19,6 @@ const FLOOD_SHARPNESS = 2.0
  */
 const FRONT_START = 0.14
 const FRONT_END = 7.6
-
-/** How long the white of the crack outlasts the strike, in seconds. */
-const STRIKE_SECONDS = 0.16
-
-/**
- * When the screen starts taking the rarity's colour, and how long it takes to be
- * all of it: it is complete at the moment the flood has taken the whole frame, so
- * the colour lands on the light and the paper is gone from it. A colour that
- * arrives later leaves the paper showing through as a ghost of itself.
- */
-const COVER_START = 0.3
-const COVER_SECONDS = 0.45
-
-/**
- * The white that follows, in seconds after the tear. It starts the instant the
- * colour is complete — the frame bleaches out of that colour rather than after a
- * pause — and runs on the same shape as the flood.
- */
-const BLEACH_START = COVER_START + COVER_SECONDS
-const BLEACH_SECONDS = 0.5
 
 /**
  * The prism's fringe around the front: where it sits in multiples of the front's
@@ -61,32 +36,21 @@ const SPECTRUM_DRIFT = 0.1
 /** How bright the fringe is next to the front it rings. */
 const SPECTRUM_GAIN = 0.9
 
-/** How much of the screen the tear has taken, and how far into the white it is. */
-export type FrameWash = {
-  /** 0..1: how much of the picture the rarity's colour covers. */
-  coverage: number
-  /** 0..1: how far that colour has bleached to white. Zero until it is all there. */
-  bleach: number
-}
-
 export type TearBurst = {
   object: THREE.Mesh
   /**
    * The light that leaves the crack once the paper gives way. It starts with
-   * `torn` and stops when the paper is whole again, and it runs on `dt` rather
-   * than on the scene clock, so a script that freezes the clock still gets a
-   * flooded frame instead of a half-open one.
+   * `torn` and stops when the paper is whole again. When it happens is the
+   * timeline's; this only draws it.
    */
-  update(state: { x: number; y: number; torn: boolean; dt: number; rarity: Rarity }): void
-  /** Pins how far into the flood a script wants the frame, or lets it run again. */
-  holdAt(seconds: number | null): void
-  /**
-   * How much of the screen the tear has taken by now. The caller paints it over
-   * the page — the paper and the vignette included, which the flood itself
-   * cannot repaint: added light leaves white paper white. It is a readout of
-   * `update`'s own clock, so the wash cannot drift off the flood.
-   */
-  wash(): FrameWash
+  update(state: {
+    x: number
+    y: number
+    torn: boolean
+    beat: TearBeat
+    dt: number
+    rarity: Rarity
+  }): void
 }
 
 /**
@@ -139,39 +103,17 @@ export function createTearBurst(): TearBurst {
   object.position.z = 0.02
   object.visible = false
 
-  /** Seconds since the tear, and the age a script has pinned, if any. */
-  let age = 0
-  let heldAge: number | null = null
-  /** The screen's wash, latched for the caller that paints it. */
-  let washAmount: FrameWash = { coverage: 0, bleach: 0 }
-
   return {
     object,
 
-    holdAt(seconds) {
-      heldAge = seconds
-    },
-
-    wash: () => washAmount,
-
-    update({ x, y, torn, dt, rarity }) {
+    update({ x, y, torn, beat, dt, rarity }) {
       object.visible = torn && effects.burst
-      if (!torn) {
-        age = 0
-        washAmount = { coverage: 0, bleach: 0 }
-        return
-      }
+      if (!torn) return
 
-      age = heldAge ?? age + dt
-      washAmount = washAt(age)
       uniforms.uTime.value += dt
-
-      const progress = clamp01(age / FLOOD_SECONDS)
-      const eased = 1 - (1 - progress) ** FLOOD_SHARPNESS
-
-      uniforms.uFront.value = FRONT_START + eased * (FRONT_END - FRONT_START)
-      uniforms.uWash.value = eased
-      uniforms.uStrike.value = clamp01(1 - age / STRIKE_SECONDS)
+      uniforms.uFront.value = FRONT_START + beat.flood * (FRONT_END - FRONT_START)
+      uniforms.uWash.value = beat.flood
+      uniforms.uStrike.value = beat.strike
 
       const look = findRarity(rarity)
       uniforms.uSpectrum.value = effects.prism ? look.spectrum : 0
@@ -267,25 +209,3 @@ const FRAGMENT_SHADER = /* glsl */ `
     #include <colorspace_fragment>
   }
 `
-
-function clamp01(value: number): number {
-  return Math.min(1, Math.max(0, value))
-}
-
-/**
- * How much of the screen the tear has taken by `age`, and how bleached it is. Each
- * part climbs the way the flood does — fastest first, then a slow settle — so the
- * ending keeps the motion the rest of the tear is cut to.
- */
-function washAt(age: number): FrameWash {
-  return {
-    coverage: easeOut(age, COVER_START, COVER_SECONDS),
-    bleach: easeOut(age, BLEACH_START, BLEACH_SECONDS),
-  }
-}
-
-/** Nothing before `start`, then 0..1 over `seconds`, leaving at its fastest. */
-function easeOut(age: number, start: number, seconds: number): number {
-  const travelled = clamp01((age - start) / seconds)
-  return 1 - (1 - travelled) ** 2
-}

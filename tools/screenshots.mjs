@@ -25,9 +25,11 @@
 // `--off` unticks effect switches by their lab label ("粒子特效,蓄力光晕"), the way
 // a human would, so the same frame can be shot with an effect on and off.
 //
-// `--burst 0,0.15,0.4,1` shoots the tear's flood at those ages, in seconds since
-// the paper gave way. It needs `--drag` past the tear (~1.3 screen heights),
-// because only a real drag can tear the paper.
+// `--burst 0,0.15,0.4,1` shoots the tear at those ages, in seconds since the paper
+// gave way. Everything the tear drives is pinned to the same age — the flood, the
+// piece's drop, the jolt — so two frames can be compared, and a script cannot
+// catch the camera at a different moment from the light. It needs `--drag` past
+// the tear (~1.3 screen heights), because only a real drag can tear the paper.
 //
 // `--drag` takes the live path instead: it holds a real drag of that many screen
 // heights and shoots the frame while the pointer is still down. Past about 1.25
@@ -202,7 +204,7 @@ async function runLiveDrag(screenHeights) {
   } else {
     const shots = []
     for (const age of bursts) {
-      await page.evaluate((seconds) => window.debug.holdBurst(seconds), age)
+      await page.evaluate((seconds) => window.debug.holdTear(seconds), age)
       // The age is pinned, so two frames are enough for it to land.
       await page.waitForTimeout(200)
       shots.push(await capture(`${options.desc}-burst${age}`, `${age}s`))

@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { effects, params } from '../params'
+import type { TearBeat } from '../tear/timeline'
 
 /** The camera keeps its sideways angle throughout the pull. */
 const CAMERA_X = 1.05
@@ -24,10 +25,11 @@ const BLOOM_RADIUS = 0.5
 export type Stage = {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
-  /** Moves the camera to the framing for this pull progress. */
-  setPull(progress: number): void
-  /** Jolts the camera once, as if the tear struck the frame. */
-  shake(): void
+  /**
+   * Frames this pull progress, and reads the tear's jolt off `beat`. The camera
+   * has one owner: whatever the pull asks for, plus the break's knock on top.
+   */
+  setPull(progress: number, beat: TearBeat): void
   /**
    * Holds the scene clock at `at` seconds, so a script can shoot several frames
    * with the same animation phase; null lets it run again.
@@ -92,7 +94,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
 
   let renderFrame: ((dt: number, elapsed: number) => void) | null = null
   const clock = new THREE.Clock()
-  let shakeStartedAt: number | null = null
+  /** How hard this frame's jolt is, and how far into the tear it is ringing. */
+  let shakeNow = 0
+  let shakeAge = 0
   /** A scene time a script asked to hold, or null while the clock runs. */
   let frozenTime: number | null = null
 
@@ -102,21 +106,20 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     const dt = Math.min(clock.getDelta(), 0.05)
     const elapsed = frozenTime ?? clock.elapsedTime
     renderFrame?.(dt, elapsed)
-    applyCameraShake(elapsed)
+    placeCamera()
     // Kept as a pass rather than rebuilt: switching the bloom off still leaves
     // the frame in the same buffer, so the toggle changes the halo and nothing else.
     bloom.enabled = effects.bloom
     composer.render()
   })
 
-  /** A short, hard jolt that rings out; the camera is home again when it ends. */
-  function applyCameraShake(time: number) {
-    if (shakeStartedAt === null) return
-
-    const elapsed = time - shakeStartedAt
-    const decay = Math.max(0, 1 - elapsed / params.impactSeconds) ** 2
-    if (decay === 0) {
-      shakeStartedAt = null
+  /**
+   * Puts the camera where this frame wants it: the pull's own framing, plus the
+   * break's jolt while it rings out. Both read values `setPull` left behind, so
+   * the camera is written in one place and never fights itself.
+   */
+  function placeCamera() {
+    if (shakeNow === 0) {
       camera.position.copy(cameraBase)
       camera.lookAt(lookTarget)
       return
@@ -125,20 +128,20 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     // A vertical hit: the frame is knocked upward, so the paper appears to drop
     // with it. Sideways motion is only a small rattle, and the roll rocks both
     // ways instead of leaving the frame permanently tilted.
-    const kick = params.cameraShake * decay
+    const kick = params.cameraShake * shakeNow
     camera.position.set(
-      cameraBase.x + jolt(elapsed, 61, 0.3) * kick * 0.12,
-      cameraBase.y + kick + jolt(elapsed, 71, 1.9) * kick * 0.3,
+      cameraBase.x + jolt(shakeAge, 61, 0.3) * kick * 0.12,
+      cameraBase.y + kick + jolt(shakeAge, 71, 1.9) * kick * 0.3,
       cameraBase.z,
     )
     camera.lookAt(lookTarget)
-    camera.rotateZ(params.cameraShakeRoll * decay * jolt(elapsed, 53, 0.7))
+    camera.rotateZ(params.cameraShakeRoll * shakeNow * jolt(shakeAge, 53, 0.7))
   }
 
   return {
     scene,
     camera,
-    setPull(progress) {
+    setPull(progress, beat) {
       const t = clamp01(progress / params.maxProgress)
       cameraBase.set(
         CAMERA_X,
@@ -147,14 +150,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
       )
       lookTarget.set(0, lerp(params.cameraStartLookY, params.cameraEndLookY, t), 0)
 
-      // The shake owns the camera while it runs; it reads the same base.
-      if (shakeStartedAt === null) {
-        camera.position.copy(cameraBase)
-        camera.lookAt(lookTarget)
-      }
-    },
-    shake() {
-      shakeStartedAt = clock.elapsedTime
+      // The lab can take the jolt away; the framing and the rush are not its.
+      shakeNow = effects.cameraShake ? beat.shake : 0
+      shakeAge = beat.age
     },
     freezeTime(at) {
       frozenTime = at

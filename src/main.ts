@@ -4,6 +4,7 @@ import { trackPull } from './input/drag'
 import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
 import { createProbe } from './debug/probe'
+import { createTearTimeline } from './tear/timeline'
 import { createWhiteout } from './ui/whiteout'
 import { effects, params } from './params'
 
@@ -15,6 +16,7 @@ const paper = createToiletRoll()
 stage.scene.add(paper.object)
 
 const feed = createFeed(params)
+const tear = createTearTimeline()
 const pull = trackPull(canvas, {
   progress: () => feed.progress,
   pixelsPerFullPull: () => canvas.clientHeight * params.dragScreenHeights,
@@ -23,13 +25,12 @@ const pull = trackPull(canvas, {
 const probe = createProbe({
   feed,
   paper,
+  tear,
   camera: stage.camera,
   canvas,
   freezeTime: stage.freezeTime,
 })
 window.debug = probe
-
-let wasTorn = false
 
 const lab = createLab(
   params,
@@ -43,7 +44,9 @@ const lab = createLab(
 
 stage.onFrame((dt, time) => {
   feed.update(pull.target, pull.isDragging, dt)
-  stage.setPull(feed.progress)
+  // From the tear onwards everything below reads one clock.
+  tear.update(feed.torn, dt)
+  stage.setPull(feed.progress, tear.beat)
 
   // Faster paper swings harder; standing paper is almost still.
   const sway = effects.paperSway ? params.sway * Math.min(1, feed.speed / 3) : 0
@@ -55,14 +58,11 @@ stage.onFrame((dt, time) => {
     rarity: params.rarity,
     time,
     dt,
+    beat: tear.beat,
   })
 
-  // The tear is the one frame where the camera gets hit.
-  if (feed.torn && !wasTorn && effects.cameraShake) stage.shake()
-  wasTorn = feed.torn
-
   // The tear's ending: the frame takes the rarity's colour, then that bleaches.
-  whiteout.set(effects.whiteout ? paper.wash() : null, params.rarity)
+  whiteout.set(effects.whiteout ? tear.beat : null, params.rarity)
 
   lab.showState(probe.read())
 })
