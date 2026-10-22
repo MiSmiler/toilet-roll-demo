@@ -131,7 +131,21 @@ export function createLab(
     },
   ]
 
-  host.append(
+  // The panel folds down to the pill that reopens it. The switches and readouts stay
+  // where they are in the DOM, so folding it away costs none of their state.
+  const collapseButton = createPillButton('收起', () => fold(true))
+  const title = createHead('lab', collapseButton)
+
+  const pill = document.createElement('button')
+  pill.className = 'lab__pill'
+  pill.type = 'button'
+  pill.textContent = 'lab'
+  pill.hidden = true
+  pill.addEventListener('click', () => fold(false))
+
+  const body = document.createElement('div')
+  body.className = 'lab__body'
+  body.append(
     resetButton,
     createHead('稀有度'),
     createChoiceRow(rarityKnob),
@@ -151,6 +165,15 @@ export function createLab(
     length.row,
     surface.row,
   )
+
+  host.append(title, body, pill)
+
+  function fold(folded: boolean): void {
+    host.classList.toggle('lab--folded', folded)
+    body.hidden = folded
+    title.hidden = folded
+    pill.hidden = !folded
+  }
 
   async function copyState() {
     if (!current) return

@@ -79,6 +79,40 @@ body.is-pulling #stage {
   margin-top: 10px;
 }
 
+/**
+ * Folded away to the pill that reopens it: the panel keeps its corner and loses its
+ * size, so the frame is clean without the switches being a reload away.
+ */
+.lab--folded {
+  width: auto;
+  max-height: none;
+  padding: 6px;
+  overflow: visible;
+}
+
+.lab__pill {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lab__pill:hover {
+  color: var(--ink);
+}
+
+.lab__pill[hidden],
+.lab__body[hidden],
+.lab__head[hidden] {
+  display: none;
+}
+
 .lab__button {
   padding: 2px 8px;
   border: 1px solid var(--edge);
@@ -234,6 +268,11 @@ body.is-pulling #stage {
     bottom: 12px;
     width: auto;
     max-height: 42vh;
+  }
+
+  /* A pill the width of the screen would cover the frame it is folded away from. */
+  .lab--folded {
+    right: auto;
   }
 
   .scrub {
