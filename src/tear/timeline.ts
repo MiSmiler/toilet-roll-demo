@@ -51,6 +51,8 @@ export type TearTimeline = {
    * Read it within the frame that produced it.
    */
   beat: TearBeat
+  /** How long the act runs, in seconds: the end of whichever segment ends last. */
+  readonly duration: number
   /**
    * Moves the tear on by one frame, or rewinds it to nothing while the paper is
    * whole again. Every frame is a function of the age alone, so the same age
@@ -58,8 +60,8 @@ export type TearTimeline = {
    */
   update(torn: boolean, dt: number): void
   /**
-   * Pins the tear at `seconds` so a torn frame can be photographed, or lets it
-   * run again with null. A script's knob only.
+   * Pins the tear at `seconds` so a torn frame can be seen or photographed, or lets
+   * it run again with null. What a screenshot script and the lab's strip both steer.
    */
   holdAt(seconds: number | null): void
 }
@@ -100,11 +102,20 @@ export function createTearTimeline(): TearTimeline {
   timeline.to(beat, { fall: 1, duration: params.impactSeconds, ease: 'power2.out' }, 0)
   timeline.to(beat, { shake: 0, duration: params.impactSeconds, ease: 'power1.out' }, 0)
 
+  /** The act's whole length, so a strip can offer its full range without repeating it. */
+  const duration = timeline.duration()
+
   return {
     beat,
+    duration,
 
     holdAt(seconds) {
       pinned = seconds
+      // Applied as it is asked for, not on the next frame: a strip dragging its head
+      // has to land the frames it passes through.
+      if (seconds === null) return
+      beat.age = seconds
+      timeline.time(seconds)
     },
 
     update(torn, dt) {

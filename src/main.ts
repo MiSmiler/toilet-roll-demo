@@ -3,6 +3,7 @@ import { createToiletRoll } from './scene/toiletRoll'
 import { trackPull } from './input/drag'
 import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
+import { createTearScrubber } from './ui/scrubber'
 import { createProbe } from './debug/probe'
 import { createTearTimeline } from './tear/timeline'
 import { effects, params } from './params'
@@ -17,6 +18,9 @@ stage.scene.add(paper.object)
 
 const feed = createFeed(params)
 const tear = createTearTimeline()
+// Armed from the lab, it catches a tear on its first frame and hands the act to the
+// strip along the bottom of the screen.
+const scrub = createTearScrubber(tear, document.body)
 const pull = trackPull(canvas, {
   progress: () => feed.progress,
   pixelsPerFullPull: () => canvas.clientHeight * params.dragScreenHeights,
@@ -40,11 +44,14 @@ const lab = createLab(
     feed.reset()
   },
   probe,
+  scrub,
 )
 
 stage.onFrame((dt, time) => {
   feed.update(pull.target, pull.isDragging, dt)
-  // From the tear onwards everything below reads one clock.
+  // The strip decides whether the act may run before it advances, then paints the age
+  // it reached; from the tear onwards everything below reads one clock.
+  scrub.hold(feed.torn)
   tear.update(feed.torn, dt)
   stage.setPull(feed.progress, tear.beat)
 
@@ -76,6 +83,7 @@ stage.onFrame((dt, time) => {
   }
 
   lab.showState(probe.read())
+  scrub.show(tear.beat.age)
 })
 
 function query<T extends Element>(selector: string): T {

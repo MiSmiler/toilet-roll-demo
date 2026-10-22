@@ -1,6 +1,7 @@
 import type { Probe, SceneState } from '../debug/probe'
 import { effects, type DragParams, type Effects } from '../params'
 import { RARITIES, type Rarity } from '../scene/rarity'
+import type { TearScrubber } from './scrubber'
 
 export type Lab = {
   /** Paints the numbers the last frame was built from. Called every frame. */
@@ -34,6 +35,7 @@ export function createLab(
   host: HTMLElement,
   onReset: () => void,
   probe: Probe,
+  scrub: TearScrubber,
 ): Lab {
   const percent = createReadout('已拉')
   const bar = document.createElement('div')
@@ -117,6 +119,18 @@ export function createLab(
   const resetButton = createPillButton('重置纸带', onReset)
   resetButton.classList.add('lab__reset')
 
+  /**
+   * Not an effect on the picture but on the act itself: with it on, a tear stops on
+   * its first frame and waits for the strip along the bottom of the screen.
+   */
+  const debugToggles: ToggleKnob[] = [
+    {
+      label: '时间轴调试',
+      read: () => scrub.isArmed(),
+      write: (on) => scrub.setArmed(on),
+    },
+  ]
+
   host.append(
     resetButton,
     createHead('稀有度'),
@@ -127,6 +141,8 @@ export function createLab(
     ...effectToggles.map(createToggleRow),
     createHead('手感'),
     ...feelToggles.map(createToggleRow),
+    createHead('调试'),
+    ...debugToggles.map(createToggleRow),
     createHead('状态', copyButton),
     percent.row,
     strain.row,

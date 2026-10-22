@@ -172,6 +172,61 @@ body.is-pulling #stage {
   accent-color: #d9d3c4;
 }
 
+/**
+ * The tear's act, when the lab arms the strip: a head, a play/pause and the age it is
+ * parked at. It sits in the free space beside the panel rather than across the whole
+ * frame, so it never covers the shot it is there to judge.
+ */
+.scrub {
+  position: fixed;
+  z-index: 2;
+  left: 276px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 720px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+}
+
+.scrub[hidden] {
+  display: none;
+}
+
+.scrub__button {
+  min-width: 52px;
+  padding: 3px 10px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.scrub__button:hover {
+  background: rgba(244, 241, 233, 0.1);
+}
+
+.scrub__track {
+  flex: 1;
+  accent-color: #d9d3c4;
+  cursor: pointer;
+}
+
+.scrub__age {
+  min-width: 58px;
+  text-align: right;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 720px) {
   .lab {
     left: 12px;
@@ -179,5 +234,10 @@ body.is-pulling #stage {
     bottom: 12px;
     width: auto;
     max-height: 42vh;
+  }
+
+  .scrub {
+    top: 12px;
+    bottom: auto;
   }
 }
