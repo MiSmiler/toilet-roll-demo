@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { effects, params } from '../params'
 import type { TearBeat } from '../tear/timeline'
+import { createFrameTint, type FrameTint } from './frameTint'
 
 /** The camera keeps its sideways angle throughout the pull. */
 const CAMERA_X = 1.05
@@ -25,6 +26,8 @@ const BLOOM_RADIUS = 0.5
 export type Stage = {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
+  /** The light the tear lays on the finished frame. */
+  light: FrameTint
   /**
    * Frames this pull progress, and reads the tear's jolt off `beat`. The camera
    * has one owner: whatever the pull asks for, plus the break's knock on top.
@@ -76,7 +79,11 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   )
 
   const composer = new EffectComposer(renderer)
+  // The tear's light sits between the picture and the halo, so the flood that the
+  // tint colours is the flood the bloom spreads.
+  const light = createFrameTint()
   composer.addPass(new RenderPass(scene, camera))
+  composer.addPass(light.pass)
   composer.addPass(bloom)
   composer.addPass(new OutputPass())
 
@@ -88,6 +95,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     composer.setSize(width, height)
     camera.aspect = width / height
     camera.updateProjectionMatrix()
+    light.setAspect(camera.aspect)
   }
   resize()
   window.addEventListener('resize', resize)
@@ -141,6 +149,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   return {
     scene,
     camera,
+    light,
     setPull(progress, beat) {
       const t = clamp01(progress / params.maxProgress)
       cameraBase.set(

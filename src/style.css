@@ -35,30 +35,16 @@ body.is-pulling #stage {
   cursor: grabbing;
 }
 
-/* A faint vignette keeps the white paper from meeting the background edge-on. */
+/**
+ * A faint vignette keeps the white paper from meeting the background edge-on. The
+ * tear's light overexposes the frame's corners along with everything else, so
+ * main writes its opacity down as the flash burns — see src/scene/frameTint.ts.
+ */
 .vignette {
   position: fixed;
   inset: 0;
   pointer-events: none;
   background: radial-gradient(90% 70% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
-}
-
-/**
- * The screen the tear ends on. Its colour and how much of the frame it covers are
- * written every frame by src/ui/whiteout.ts: the rarity's colour first, bleached
- * to white. It sits above the picture, the vignette included, because a frame is
- * only one colour if everything it is made of is under the same layer.
- *
- * The lab panel stays above it, otherwise the switch that takes it away would be
- * out of reach the first time someone tears the paper.
- */
-.whiteout {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: #fff;
-  opacity: 0;
 }
 
 .lab {

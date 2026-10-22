@@ -5,12 +5,12 @@ import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
 import { createProbe } from './debug/probe'
 import { createTearTimeline } from './tear/timeline'
-import { createWhiteout } from './ui/whiteout'
 import { effects, params } from './params'
 
 const canvas = query<HTMLCanvasElement>('#stage')
 const stage = createStage(canvas)
-const whiteout = createWhiteout(query<HTMLElement>('.whiteout'))
+const vignette = query<HTMLElement>('.vignette')
+let shownVignette = -1
 
 const paper = createToiletRoll()
 stage.scene.add(paper.object)
@@ -61,8 +61,17 @@ stage.onFrame((dt, time) => {
     beat: tear.beat,
   })
 
-  // The tear's ending: the frame takes the rarity's colour, then that bleaches.
-  whiteout.set(effects.whiteout ? tear.beat : null, params.rarity)
+  // The tear's light: the frame takes the rarity's colour, then a second wave of
+  // white follows it out from the centre. The light reaches the frame's dark corners
+  // too, so the vignette steps back as that wave arrives — a white frame ringed by
+  // dark edges is still a picture.
+  stage.light.update({ cover: tear.beat.cover, white: tear.beat.white, rarity: params.rarity })
+  const cornerFade = Math.min(1, Math.max(0, (tear.beat.white - 0.55) / 0.3))
+  const vignetteOpacity = effects.whiteout ? 1 - cornerFade : 1
+  if (vignetteOpacity !== shownVignette) {
+    shownVignette = vignetteOpacity
+    vignette.style.opacity = vignetteOpacity.toFixed(3)
+  }
 
   lab.showState(probe.read())
 })
