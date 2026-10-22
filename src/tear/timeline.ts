@@ -122,6 +122,10 @@ export function createTearTimeline(): TearTimeline {
       if (!torn) {
         beat.age = 0
         timeline.time(0)
+        // The jolt belongs to the tear, not to the frame it starts at: parked at zero
+        // with the paper whole, the shake tween is still at its first value, which
+        // would hold the camera knocked off its framing for the whole drag.
+        beat.shake = 0
         return
       }
 
