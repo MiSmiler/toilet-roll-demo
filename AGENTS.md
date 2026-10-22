@@ -10,7 +10,3 @@
 
 - 用 `npm run shot` 拍，用法和参数见 `tools/screenshots.mjs` 开头的注释：`--burst` 拍撕裂后的一组时刻，多帧拼成一张 contact sheet，一整段的走向看得清；`--off` 按 lab 面板的标签关掉一个效果开关，同一帧开、关各拍一张，差值就是那个效果自己贡献的东西。
 - 截图落在 `.scratch/screenshot/`。报告里给文件名，并说清该看画面哪一处。
-
-## 合并
-
-开发分支合并回 `main` 时走 `git merge --no-ff`，让每个分支在历史上留一个 merge commit 和它自己的提交串。
