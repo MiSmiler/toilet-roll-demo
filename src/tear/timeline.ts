@@ -20,7 +20,7 @@ const BLOOM_SECONDS = 0.55
  * the fade is what finishes a frame that is nearly gone instead of what does the
  * whitening.
  */
-const VEIL_START = 0.45
+const VEIL_START = 0.25
 const VEIL_SECONDS = 0.45
 
 /**
