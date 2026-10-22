@@ -29,6 +29,23 @@ const FRONT_END = 7.6
 const STRIKE_SECONDS = 0.16
 
 /**
+ * When the screen starts taking the rarity's colour, and how long it takes to be
+ * all of it: it is complete at the moment the flood has taken the whole frame, so
+ * the colour lands on the light and the paper is gone from it. A colour that
+ * arrives later leaves the paper showing through as a ghost of itself.
+ */
+const COVER_START = 0.3
+const COVER_SECONDS = 0.45
+
+/**
+ * The white that follows, in seconds after the tear. It starts the instant the
+ * colour is complete — the frame bleaches out of that colour rather than after a
+ * pause — and runs on the same shape as the flood.
+ */
+const BLEACH_START = COVER_START + COVER_SECONDS
+const BLEACH_SECONDS = 0.5
+
+/**
  * The prism's fringe around the front: where it sits in multiples of the front's
  * own width, how wide it is, and how many spectral cycles it runs through. The
  * colour is ordered outwards, so a short run of cycles reads as a rainbow and a
@@ -44,6 +61,14 @@ const SPECTRUM_DRIFT = 0.1
 /** How bright the fringe is next to the front it rings. */
 const SPECTRUM_GAIN = 0.9
 
+/** How much of the screen the tear has taken, and how far into the white it is. */
+export type FrameWash = {
+  /** 0..1: how much of the picture the rarity's colour covers. */
+  coverage: number
+  /** 0..1: how far that colour has bleached to white. Zero until it is all there. */
+  bleach: number
+}
+
 export type TearBurst = {
   object: THREE.Mesh
   /**
@@ -55,6 +80,13 @@ export type TearBurst = {
   update(state: { x: number; y: number; torn: boolean; dt: number; rarity: Rarity }): void
   /** Pins how far into the flood a script wants the frame, or lets it run again. */
   holdAt(seconds: number | null): void
+  /**
+   * How much of the screen the tear has taken by now. The caller paints it over
+   * the page — the paper and the vignette included, which the flood itself
+   * cannot repaint: added light leaves white paper white. It is a readout of
+   * `update`'s own clock, so the wash cannot drift off the flood.
+   */
+  wash(): FrameWash
 }
 
 /**
@@ -64,8 +96,12 @@ export type TearBurst = {
  * has to continue the seam rather than appear beside it: white where the paper
  * broke, the rarity's own colour further out, and an uneven front that runs with
  * the crack — long along it, short across it — before settling into a wash that
- * holds the frame. The bloom pass turns whatever runs past white into a halo, so
- * the front is pushed well past it.
+ * takes the whole frame in that colour. The bloom pass turns whatever runs past
+ * white into a halo, so the front is pushed well past it.
+ *
+ * The white follows the colour rather than replacing it: as the frame fills in the
+ * rarity's colour, that colour is what bleaches, and the white it leaves hands the
+ * screen over to whatever comes next.
  */
 export function createTearBurst(): TearBurst {
   const uniforms = {
@@ -106,6 +142,8 @@ export function createTearBurst(): TearBurst {
   /** Seconds since the tear, and the age a script has pinned, if any. */
   let age = 0
   let heldAge: number | null = null
+  /** The screen's wash, latched for the caller that paints it. */
+  let washAmount: FrameWash = { coverage: 0, bleach: 0 }
 
   return {
     object,
@@ -114,14 +152,18 @@ export function createTearBurst(): TearBurst {
       heldAge = seconds
     },
 
+    wash: () => washAmount,
+
     update({ x, y, torn, dt, rarity }) {
       object.visible = torn && effects.burst
       if (!torn) {
         age = 0
+        washAmount = { coverage: 0, bleach: 0 }
         return
       }
 
       age = heldAge ?? age + dt
+      washAmount = washAt(age)
       uniforms.uTime.value += dt
 
       const progress = clamp01(age / FLOOD_SECONDS)
@@ -200,9 +242,11 @@ const FRAGMENT_SHADER = /* glsl */ `
     float body = 0.88 + 0.24 * uneven(angle * 1.1 + 3.0);
     float nearCrack = 0.7 + 0.3 * (1.0 - smoothstep(0.0, 2.2, reach));
 
-    // The corners are held back, so the frame ends flooded rather than blank:
-    // there is still a picture in there to hand over to the next act.
-    float corners = 1.0 - 0.45 * smoothstep(0.55, 1.6, length(vLocal));
+    // The corners are held back while the front is still on its way, so the frame
+    // ends flooded rather than blank. Once it lands they come in too: the ground
+    // the white closes over has to be one colour, or the white would be erasing a
+    // picture instead of continuing the light.
+    float corners = 1.0 - 0.45 * smoothstep(0.55, 1.6, length(vLocal)) * (1.0 - uWash);
 
     // The prism is a second ring rather than a repaint of the first, and it rings
     // the outside of the front, ordered outwards the way a real prism orders
@@ -226,4 +270,22 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
+}
+
+/**
+ * How much of the screen the tear has taken by `age`, and how bleached it is. Each
+ * part climbs the way the flood does — fastest first, then a slow settle — so the
+ * ending keeps the motion the rest of the tear is cut to.
+ */
+function washAt(age: number): FrameWash {
+  return {
+    coverage: easeOut(age, COVER_START, COVER_SECONDS),
+    bleach: easeOut(age, BLEACH_START, BLEACH_SECONDS),
+  }
+}
+
+/** Nothing before `start`, then 0..1 over `seconds`, leaving at its fastest. */
+function easeOut(age: number, start: number, seconds: number): number {
+  const travelled = clamp01((age - start) / seconds)
+  return 1 - (1 - travelled) ** 2
 }

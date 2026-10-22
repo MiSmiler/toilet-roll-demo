@@ -4,10 +4,12 @@ import { trackPull } from './input/drag'
 import { createFeed } from './paper/feed'
 import { createLab } from './ui/lab'
 import { createProbe } from './debug/probe'
+import { createWhiteout } from './ui/whiteout'
 import { effects, params } from './params'
 
 const canvas = query<HTMLCanvasElement>('#stage')
 const stage = createStage(canvas)
+const whiteout = createWhiteout(query<HTMLElement>('.whiteout'))
 
 const paper = createToiletRoll()
 stage.scene.add(paper.object)
@@ -58,6 +60,9 @@ stage.onFrame((dt, time) => {
   // The tear is the one frame where the camera gets hit.
   if (feed.torn && !wasTorn && effects.cameraShake) stage.shake()
   wasTorn = feed.torn
+
+  // The tear's ending: the frame takes the rarity's colour, then that bleaches.
+  whiteout.set(effects.whiteout ? paper.wash() : null, params.rarity)
 
   lab.showState(probe.read())
 })

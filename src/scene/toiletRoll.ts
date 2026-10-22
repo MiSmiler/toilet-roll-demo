@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { effects, PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
-import { createTearBurst } from './tearBurst'
+import { createTearBurst, type FrameWash } from './tearBurst'
 import { createTearLine } from './tearLine'
 import type { Rarity } from './rarity'
 
@@ -57,6 +57,8 @@ export type ToiletRoll = {
   bounds(): THREE.Box3
   /** Pins how far into the tear's flood a script wants the frame, or lets it run. */
   holdBurst(seconds: number | null): void
+  /** How much of the screen the tear has taken by now, read off the burst's clock. */
+  wash(): FrameWash
 }
 
 /**
@@ -171,6 +173,8 @@ export function createToiletRoll(): ToiletRoll {
     parts: () => ({ ...enabled }),
 
     holdBurst: (seconds) => burst.holdAt(seconds),
+
+    wash: () => burst.wash(),
 
     bounds() {
       // Wide enough for the sheet's sway, tremble and swing, deep enough for the

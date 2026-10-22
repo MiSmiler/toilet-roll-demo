@@ -70,6 +70,7 @@ export function createLab(
   const effectToggles: ToggleKnob[] = [
     createEffectToggle('蓄力光晕', 'bloom'),
     createEffectToggle('撕裂爆发', 'burst'),
+    createEffectToggle('满屏白', 'whiteout'),
     createEffectToggle('彩虹光晕', 'prism'),
     createEffectToggle('压暗', 'shadow'),
     createEffectToggle('粒子特效', 'particles'),

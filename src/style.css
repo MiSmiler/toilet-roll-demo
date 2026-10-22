@@ -43,8 +43,27 @@ body.is-pulling #stage {
   background: radial-gradient(90% 70% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
 }
 
+/**
+ * The screen the tear ends on. Its colour and how much of the frame it covers are
+ * written every frame by src/ui/whiteout.ts: the rarity's colour first, bleached
+ * to white. It sits above the picture, the vignette included, because a frame is
+ * only one colour if everything it is made of is under the same layer.
+ *
+ * The lab panel stays above it, otherwise the switch that takes it away would be
+ * out of reach the first time someone tears the paper.
+ */
+.whiteout {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+}
+
 .lab {
   position: fixed;
+  z-index: 2;
   left: 16px;
   bottom: 16px;
   width: 244px;
