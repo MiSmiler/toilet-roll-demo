@@ -8,11 +8,10 @@ const WHITE = new THREE.Color(1, 1, 1)
 
 /**
  * How far a rarity's colour is lifted toward white to be read as a light rather than
- * as ink. A light strong enough to blow out a page has no fully saturated hue left in
- * it, so the rarity is carried by a tint of its colour and the rest of the way toward
- * white is what makes it read as brightness.
+ * as ink. Kept small: the rim of the tear has to be the colour the seam had a frame
+ * earlier, and white is what the light becomes deeper in, not what it arrives as.
  */
-const LIGHT_PALE = 0.55
+const LIGHT_PALE = 0.2
 
 export type RarityLook = {
   id: Rarity
@@ -22,7 +21,7 @@ export type RarityLook = {
   core: THREE.Color
   /** The colour of the light spilling off the line. */
   glow: THREE.Color
-  /** `glow` read as light: lifted toward white, and what every effect should burn. */
+  /** `glow` read as light: barely lifted toward white, and what every effect burns. */
   light: THREE.Color
   /** How much brighter than the plain white beam the spill burns at full strain. */
   glowGain: number

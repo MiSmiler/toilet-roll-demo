@@ -23,6 +23,35 @@ const EDGE = 0.14
 const FRONT_OVERRUN = 1 + EDGE
 
 /**
+ * The width of the light's coloured rim, as a share of the distance to the frame's
+ * corner. The rim is the light as it arrives — the rarity's colour, which is the
+ * colour the seam wore before it gave way, so the tear is continuous with the pull —
+ * and it is the only part of the wave the page is still readable through.
+ */
+const RIM = 0.28
+
+/**
+ * How far inside the rim the light has burnt out to white. Everything deeper than this
+ * is the same light, too strong to keep a colour.
+ */
+const BURNT = 0.32
+
+/**
+ * How far out the light has to be before the white is allowed to burn. While the wave
+ * is still leaving the crack the frame has to be the colour the seam wore; the white
+ * is what the same light becomes further along, so it may not be there first.
+ */
+const BURNT_FROM = 0.02
+const BURNT_BY = 0.18
+
+/**
+ * How bright the burnt light is, in multiples of white. It is added to the picture
+ * rather than laid over it, so the frame's own light and shade wash out as the value
+ * climbs past white: an overexposure, not a card.
+ */
+const FLASH_PEAK = 3
+
+/**
  * How much shorter the light's wave is down the frame than across it. It leaves the
  * crack along the seam, so it is long sideways and short down the page, and it takes
  * the sides well before it takes the top and bottom — the same shape the flood has,
@@ -60,11 +89,12 @@ export type FrameTint = {
 /**
  * The tear's two lights, at the two moments they own.
  *
- * The first is the burst's own colour: light leaving the crack, turning the page under
- * it and leaving its folds and torn edge readable, because it multiplies the picture
- * rather than covering it. It is not made white here — the halo gaining strength is
- * what whitens the frame, so the colour is the last thing to go and it goes by being
- * outshone rather than by being mixed away.
+ * The first is the burst's own colour, and it is a rim rather than a wash: the wave is
+ * a ring of the rarity's colour travelling out from the crack with white already burnt
+ * in behind it. So the first frame of the tear is the seam's own colour leaving, and
+ * the white follows the rim outwards — never the other way round. The rim multiplies
+ * the picture, so the page's folds and torn edge stay readable through it; the white
+ * behind it is added light, piled until the tone mapping gives up.
  *
  * The second is the white that closes the shot. It fades in from the centre over a
  * broad edge, so the frame is taken by a gradient rather than switched, and it is a
@@ -139,17 +169,32 @@ const FRAGMENT_SHADER = /* glsl */ `
     float reach = length(across * vec2(uAspect, 1.0)) / corner;
 
     float front = uLight * ${FRONT_OVERRUN.toFixed(3)};
-    float lit = 1.0 - smoothstep(front - ${EDGE.toFixed(3)}, front + ${EDGE.toFixed(3)}, reach);
-    // A front sitting on the centre still covers its own edge there, which would
-    // tint the middle of an untouched frame. Nothing is lit before it leaves.
-    lit *= step(0.0001, uLight);
-    vec3 tinted = scene.rgb * mix(vec3(1.0), uGlow, lit);
+    // How deep inside the wave this pixel is: positive behind the rim, negative ahead
+    // of it, in shares of the distance to the corner.
+    float depth = front - reach;
+    float inside = smoothstep(-${EDGE.toFixed(3)}, ${EDGE.toFixed(3)}, depth);
+    // A front sitting on the centre still covers its own edge there, which would tint
+    // the middle of an untouched frame. Nothing is lit before it leaves.
+    inside *= step(0.0001, uLight);
+
+    // The rim is the light as it arrives: the rarity's colour, on the outside of the
+    // wave, where the page is still a page. Inside it the same light has already burnt
+    // out, so the white grows behind the colour and never the other way round.
+    float rim = inside * (1.0 - smoothstep(0.0, ${RIM.toFixed(3)}, depth));
+    // How far inside that rim the light has burnt out, once it is far enough out to be
+    // burning at all.
+    float burnt = smoothstep(0.0, ${BURNT.toFixed(3)}, depth)
+                * smoothstep(${BURNT_FROM.toFixed(3)}, ${BURNT_BY.toFixed(3)}, front);
+
+    vec3 tinted = scene.rgb * mix(vec3(1.0), uGlow, rim);
+    vec3 lightColour = mix(uGlow, vec3(1.0), burnt);
+    float power = ${FLASH_PEAK.toFixed(1)} * burnt * inside;
 
     // The white that closes the shot: broad, soft, and out of the centre.
     float veilFront = uVeil * ${VEIL_OVERRUN.toFixed(3)};
     float veil = 1.0 - smoothstep(veilFront - ${VEIL_EDGE.toFixed(3)}, veilFront + ${VEIL_EDGE.toFixed(3)}, reach);
     veil *= step(0.0001, uVeil);
 
-    gl_FragColor = vec4(mix(tinted, vec3(${VEIL_WHITE.toFixed(1)}), veil), scene.a);
+    gl_FragColor = vec4(mix(tinted + lightColour * power, vec3(${VEIL_WHITE.toFixed(1)}), veil), scene.a);
   }
 `

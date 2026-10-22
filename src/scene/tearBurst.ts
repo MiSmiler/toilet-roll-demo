@@ -21,6 +21,19 @@ const FRONT_START = 0.14
 const FRONT_END = 7.6
 
 /**
+ * How much white the leading band is mixed toward. The band is the light arriving, so
+ * it has to still be the rarity's colour: the tear has to pick up the colour the seam
+ * wore a moment before, or the two shots do not join.
+ */
+const BAND_PALE = 0.25
+
+/**
+ * How much white the crack line itself is mixed toward. Small like the band's: the
+ * hairline is brighter than the seam it replaces, but it is still the seam's colour.
+ */
+const CRACK_PALE = 0.3
+
+/**
  * The prism's fringe around the front: where it sits in multiples of the front's
  * own width, how wide it is, and how many spectral cycles it runs through. The
  * colour is ordered outwards, so a short run of cycles reads as a rainbow and a
@@ -176,7 +189,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     float filled = 1.0 - smoothstep(front - 0.6, front, reach);
     float settle = 0.35 + 0.7 * uWash;
 
-    // The crack itself, white and thin, outliving the seam by a heartbeat.
+    // The crack itself, kept a thin hot line outliving the seam by a heartbeat. It is
+    // the seam's own colour, only hotter: the tear has to look like the strain that
+    // was there a frame ago, or the two shots cut rather than join.
     float crack = exp(-pow(vLocal.y / 0.05, 2.0)) * (1.0 - smoothstep(0.0, 1.6, abs(vLocal.x)));
 
     // Slow unevenness across the flooded frame, so the wash has some structure
@@ -199,9 +214,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     float hue = (beyond - ${FRINGE_START.toFixed(2)}) * ${SPECTRUM_CYCLES.toFixed(2)} + uTime * ${SPECTRUM_DRIFT.toFixed(2)};
 
     vec3 light = uGlow * filled * settle * body * nearCrack
-               + mix(uGlow, vec3(1.0), 0.75) * band * 1.8
+               + mix(uGlow, vec3(1.0), ${BAND_PALE.toFixed(2)}) * band * 1.8
                + hueToLight(hue) * fringe * ${SPECTRUM_GAIN.toFixed(2)} * uSpectrum
-               + vec3(1.0) * crack * 2.5 * uStrike;
+               + mix(uGlow, vec3(1.0), ${CRACK_PALE.toFixed(2)}) * crack * 2.5 * uStrike;
 
     gl_FragColor = vec4(light * corners, 0.0);
 
