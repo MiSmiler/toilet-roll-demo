@@ -118,7 +118,7 @@ export function createTearBurst(): TearBurst {
       const look = findRarity(rarity)
       uniforms.uSpectrum.value = effects.prism ? look.spectrum : 0
       uniforms.uCore.value.copy(look.core)
-      uniforms.uGlow.value.copy(look.glow)
+      uniforms.uGlow.value.copy(look.light)
 
       object.position.x = x
       object.position.y = y

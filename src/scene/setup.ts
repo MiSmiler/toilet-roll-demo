@@ -20,6 +20,13 @@ const BLOOM_THRESHOLD = 1.0
 /** How much of that spilled light is added back over the frame. */
 const BLOOM_STRENGTH = 0.55
 
+/**
+ * How much brighter the halo is allowed to climb while the burst rings out. The
+ * whitening is this number getting out of hand, so it is large on purpose: the frame
+ * has to be washed out by light long before anything is faded to white.
+ */
+const BLOOM_BOOST = 5
+
 /** How far the halo reaches; a wide, soft radius reads as air, a tight one as a smear. */
 const BLOOM_RADIUS = 0.5
 
@@ -38,6 +45,13 @@ export type Stage = {
    * with the same animation phase; null lets it run again.
    */
   freezeTime(at: number | null): void
+
+  /**
+   * How far the burst's halo has climbed, 0 for the halo it always has. This is the
+   * tear getting too bright to look at: it whitens the frame by piling light on it
+   * rather than by mixing the picture toward white.
+   */
+  setGlow(boost: number): void
   onFrame(render: (dt: number, elapsed: number) => void): void
 }
 
@@ -105,6 +119,8 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   /** How hard this frame's jolt is, and how far into the tear it is ringing. */
   let shakeNow = 0
   let shakeAge = 0
+  /** How far the halo is being pushed, 0 while there is no burst to push. */
+  let glow = 0
   /** A scene time a script asked to hold, or null while the clock runs. */
   let frozenTime: number | null = null
 
@@ -118,6 +134,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     // Kept as a pass rather than rebuilt: switching the bloom off still leaves
     // the frame in the same buffer, so the toggle changes the halo and nothing else.
     bloom.enabled = effects.bloom
+    bloom.strength = BLOOM_STRENGTH * (1 + BLOOM_BOOST * glow)
     composer.render()
   })
 
@@ -165,6 +182,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     },
     freezeTime(at) {
       frozenTime = at
+    },
+    setGlow(boost) {
+      glow = boost
     },
     onFrame(render) {
       renderFrame = render

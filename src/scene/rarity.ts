@@ -3,6 +3,17 @@ import * as THREE from 'three'
 /** The three looks a cut can wear, plainest first. There is no drop table yet. */
 export type Rarity = 'rare' | 'epic' | 'legendary'
 
+/** The colour a light this bright ends up white against. */
+const WHITE = new THREE.Color(1, 1, 1)
+
+/**
+ * How far a rarity's colour is lifted toward white to be read as a light rather than
+ * as ink. A light strong enough to blow out a page has no fully saturated hue left in
+ * it, so the rarity is carried by a tint of its colour and the rest of the way toward
+ * white is what makes it read as brightness.
+ */
+const LIGHT_PALE = 0.55
+
 export type RarityLook = {
   id: Rarity
   /** Short name for the lab's radio buttons. */
@@ -11,6 +22,8 @@ export type RarityLook = {
   core: THREE.Color
   /** The colour of the light spilling off the line. */
   glow: THREE.Color
+  /** `glow` read as light: lifted toward white, and what every effect should burn. */
+  light: THREE.Color
   /** How much brighter than the plain white beam the spill burns at full strain. */
   glowGain: number
   /**
@@ -20,7 +33,9 @@ export type RarityLook = {
   spectrum: number
 }
 
-export const RARITIES: readonly RarityLook[] = [
+type RaritySource = Omit<RarityLook, 'light'>
+
+const SOURCE: readonly RaritySource[] = [
   {
     id: 'rare',
     label: '蓝',
@@ -46,6 +61,15 @@ export const RARITIES: readonly RarityLook[] = [
     spectrum: 1,
   },
 ]
+
+/**
+ * Every rarity's light derived once, so `glow` stays the only place a colour is
+ * written and the two cannot drift apart.
+ */
+export const RARITIES: readonly RarityLook[] = SOURCE.map((look) => ({
+  ...look,
+  light: look.glow.clone().lerp(WHITE, LIGHT_PALE),
+}))
 
 /** The look for a rarity; `RARITIES` above is the only source of these. */
 export function findRarity(id: Rarity): RarityLook {

@@ -61,12 +61,14 @@ stage.onFrame((dt, time) => {
     beat: tear.beat,
   })
 
-  // The tear's light: the frame takes the rarity's colour, then a second wave of
-  // white follows it out from the centre. The light reaches the frame's dark corners
-  // too, so the vignette steps back as that wave arrives — a white frame ringed by
-  // dark edges is still a picture.
-  stage.light.update({ cover: tear.beat.cover, white: tear.beat.white, rarity: params.rarity })
-  const cornerFade = Math.min(1, Math.max(0, (tear.beat.white - 0.55) / 0.3))
+  // The tear's light, in the two moments it owns: the rarity's colour leaving the
+  // crack, then the halo climbing until the frame is washed out, then the white that
+  // closes over it.
+  stage.light.update({ light: tear.beat.flood, veil: tear.beat.veil, rarity: params.rarity })
+  stage.setGlow(effects.whiteout ? tear.beat.bloom : 0)
+  // The vignette lives in the corners, which is where the closing white arrives last,
+  // so it only steps back once that fade is nearly upon them.
+  const cornerFade = Math.min(1, Math.max(0, (tear.beat.veil - 0.55) / 0.3))
   const vignetteOpacity = effects.whiteout ? 1 - cornerFade : 1
   if (vignetteOpacity !== shownVignette) {
     shownVignette = vignetteOpacity

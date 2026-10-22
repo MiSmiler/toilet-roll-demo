@@ -8,30 +8,20 @@ const FLOOD_SECONDS = 0.75
 const STRIKE_SECONDS = 0.16
 
 /**
- * When the screen starts taking the rarity's colour, and how long it takes to be
- * all of it. It lands while the front is still crossing, so the blue is the colour
- * the light arrives in rather than a background the frame settles into.
+ * How long the halo takes to climb. The burst whitens the frame by getting brighter
+ * rather than by being mixed toward white, so this is the whole first half of the
+ * shot: the colour is still the colour when the light has stopped being lookable.
  */
-const COVER_START = 0.15
-const COVER_SECONDS = 0.3
+const BLOOM_SECONDS = 0.55
 
 /**
- * When the white leaves the centre, as the share of the ground the colour has
- * already taken. The white is the colour's own wave sent out a second time, so it
- * is not scheduled with a duration of its own: it rides the flood's progress and
- * starts when that wave is halfway.
+ * When the white starts closing over the frame, and how long it takes. It comes in on
+ * the back of the halo, once that has already made the light too strong to watch, so
+ * the fade is what finishes a frame that is nearly gone instead of what does the
+ * whitening.
  */
-const WHITE_AFTER_COVER = 0.5
-
-/**
- * How far the white's front has come, for a given flood. Nothing until the colour
- * is halfway out, then the rest of the way at the colour's own pace, so both fronts
- * travel at one speed and the white lands on the corners exactly as the flood does.
- */
-function whiteAfter(flood: number): number {
-  const share = (flood - WHITE_AFTER_COVER) / (1 - WHITE_AFTER_COVER)
-  return Math.min(1, Math.max(0, share))
-}
+const VEIL_START = 0.45
+const VEIL_SECONDS = 0.45
 
 /**
  * The frame at one age: everything the tear drives, as progress 0..1. How far and
@@ -45,10 +35,10 @@ export type TearBeat = {
   flood: number
   /** The white of the crack: 1 on the strike frame, spent by the strike's end. */
   strike: number
-  /** How much of the screen the rarity's colour covers. */
-  cover: number
-  /** How far the white that burns it has come across the frame. */
-  white: number
+  /** How far the halo has climbed: the burst getting too bright to look at. */
+  bloom: number
+  /** How far the white that ends the shot has closed over the frame. */
+  veil: number
   /** The torn piece's drop and swing. */
   fall: number
   /** The camera's jolt: 1 when the paper gives way, 0 when it has settled. */
@@ -89,8 +79,8 @@ export function createTearTimeline(): TearTimeline {
     age: 0,
     flood: 0,
     strike: 1,
-    cover: 0,
-    white: 0,
+    bloom: 0,
+    veil: 0,
     fall: 0,
     shake: 1,
   }
@@ -103,7 +93,8 @@ export function createTearTimeline(): TearTimeline {
   const timeline = gsap.timeline({ paused: true })
   timeline.to(beat, { flood: 1, duration: FLOOD_SECONDS, ease: 'power1.out' }, 0)
   timeline.to(beat, { strike: 0, duration: STRIKE_SECONDS, ease: 'none' }, 0)
-  timeline.to(beat, { cover: 1, duration: COVER_SECONDS, ease: 'power1.out' }, COVER_START)
+  timeline.to(beat, { bloom: 1, duration: BLOOM_SECONDS, ease: 'power1.out' }, 0)
+  timeline.to(beat, { veil: 1, duration: VEIL_SECONDS, ease: 'power1.out' }, VEIL_START)
   // The piece and the jolt share a length, and that shared end is what makes the
   // drop read as the frame being knocked by the break rather than as two effects.
   timeline.to(beat, { fall: 1, duration: params.impactSeconds, ease: 'power2.out' }, 0)
@@ -120,13 +111,11 @@ export function createTearTimeline(): TearTimeline {
       if (!torn) {
         beat.age = 0
         timeline.time(0)
-        beat.white = 0
         return
       }
 
       beat.age = pinned ?? beat.age + dt
       timeline.time(beat.age)
-      beat.white = whiteAfter(beat.flood)
     },
   }
 }
