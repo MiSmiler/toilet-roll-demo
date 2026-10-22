@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { Feed } from '../paper/feed'
 import type { PaperParts, ToiletRoll } from '../scene/toiletRoll'
+import type { TearTimeline } from '../tear/timeline'
 import { effects, params, type Effects } from '../params'
 import type { Rarity } from '../scene/rarity'
 
@@ -12,6 +13,8 @@ export type SceneState = {
   strain: number
   /** True once the paper has torn. */
   torn: boolean
+  /** Seconds since the paper gave way; zero while it is whole. */
+  tearAge: number
   /** Which rarity the cut shows, as the lab's radio buttons left it. */
   rarity: Rarity
   segments: number
@@ -46,10 +49,10 @@ export type Probe = {
   freezeTime(at: number | null): void
   show(parts: Partial<PaperParts>): void
   /**
-   * Pins how far into the tear's flood the frame is, or lets it run again with
-   * null. Like freezeTime, a script's knob only.
+   * Pins the tear at `seconds` so a torn frame can be photographed, or lets it
+   * run again with null. A script's knob only.
    */
-  holdBurst(seconds: number | null): void
+  holdTear(seconds: number | null): void
   /** Where the paper lands on the page, in CSS pixels — the unit a screenshot clip takes. */
   paperRect(): Rect
 }
@@ -57,6 +60,7 @@ export type Probe = {
 type Dependencies = {
   feed: Feed
   paper: ToiletRoll
+  tear: TearTimeline
   camera: THREE.Camera
   canvas: HTMLCanvasElement
   freezeTime: (at: number | null) => void
@@ -76,12 +80,13 @@ declare global {
  * A settled scene keeps its sway at zero, so the same progress redraws the very
  * same pixels — which is what makes two screenshots comparable.
  */
-export function createProbe({ feed, paper, camera, canvas, freezeTime }: Dependencies): Probe {
+export function createProbe({ feed, paper, tear, camera, canvas, freezeTime }: Dependencies): Probe {
   return {
     read: () => ({
       progress: feed.progress,
       strain: feed.strain,
       torn: feed.torn,
+      tearAge: tear.beat.age,
       rarity: params.rarity,
       segments: feed.segments,
       length: feed.length,
@@ -101,7 +106,7 @@ export function createProbe({ feed, paper, camera, canvas, freezeTime }: Depende
 
     show: (parts) => paper.show(parts),
 
-    holdBurst: (seconds) => paper.holdBurst(seconds),
+    holdTear: (seconds) => tear.holdAt(seconds),
 
     paperRect: () => projectBox(paper.bounds(), camera, canvas),
   }

@@ -25,9 +25,15 @@
 // `--off` unticks effect switches by their lab label ("粒子特效,蓄力光晕"), the way
 // a human would, so the same frame can be shot with an effect on and off.
 //
-// `--burst 0,0.15,0.4,1` shoots the tear's flood at those ages, in seconds since
-// the paper gave way. It needs `--drag` past the tear (~1.3 screen heights),
-// because only a real drag can tear the paper.
+// The lab panel is left out of every shot, so a frame is the scene and nothing
+// else; `--lab` puts it back for the rare shot where the panel itself is what is
+// being checked.
+//
+// `--burst 0,0.15,0.4,1` shoots the tear at those ages, in seconds since the paper
+// gave way. Everything the tear drives is pinned to the same age — the flood, the
+// piece's drop, the jolt — so two frames can be compared, and a script cannot
+// catch the camera at a different moment from the light. It needs `--drag` past
+// the tear (~1.3 screen heights), because only a real drag can tear the paper.
 //
 // `--drag` takes the live path instead: it holds a real drag of that many screen
 // heights and shoots the frame while the pointer is still down. Past about 1.25
@@ -57,6 +63,7 @@ const { values: options } = parseArgs({
     hide: { type: 'string' },
     off: { type: 'string' },
     crop: { type: 'string', default: 'full' },
+    lab: { type: 'boolean', default: false },
     desc: { type: 'string', default: 'frame' },
   },
 })
@@ -202,7 +209,7 @@ async function runLiveDrag(screenHeights) {
   } else {
     const shots = []
     for (const age of bursts) {
-      await page.evaluate((seconds) => window.debug.holdBurst(seconds), age)
+      await page.evaluate((seconds) => window.debug.holdTear(seconds), age)
       // The age is pinned, so two frames are enough for it to land.
       await page.waitForTimeout(200)
       shots.push(await capture(`${options.desc}-burst${age}`, `${age}s`))
@@ -230,12 +237,25 @@ async function pickRarity(rarity) {
 async function capture(name, label = '') {
   const path = `${OUTPUT_DIR}/${timestamp()}_${name}.png`
   const clip = options.crop === 'paper' ? await paperClip() : null
+
+  // The panel is a dev tool, not part of the picture, so it steps out for the
+  // frame and comes straight back: the run drives the switches through it, and
+  // Playwright will not click what is not visible.
+  await showLab(options.lab)
   const buffer = clip ? await page.screenshot({ clip }) : await page.screenshot()
+  await showLab(true)
 
   await writeFile(path, buffer)
   console.log(`wrote ${path}${label ? `  (${label})` : ''}`)
 
   return { buffer, label }
+}
+
+async function showLab(shown) {
+  await page.evaluate((visible) => {
+    const lab = document.querySelector('.lab')
+    lab.style.display = visible ? '' : 'none'
+  }, shown)
 }
 
 /**

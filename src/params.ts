@@ -95,6 +95,11 @@ export type Effects = {
   paperTremble: boolean
   /** The camera's jolt when the paper lets go. */
   cameraShake: boolean
+  /**
+   * The white the burst ends on: once the flood has crossed the frame, the whole
+   * picture goes white and stays there until the paper is whole again.
+   */
+  whiteout: boolean
   /** The torn piece dropping and swinging free. */
   tearFall: boolean
   /** The strip's sideways swing while it moves. */
@@ -109,6 +114,7 @@ export const effects: Effects = {
   particles: true,
   paperTremble: true,
   cameraShake: true,
+  whiteout: true,
   tearFall: true,
   paperSway: true,
 }

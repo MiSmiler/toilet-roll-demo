@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { effects } from '../params'
+import type { TearBeat } from '../tear/timeline'
 import { findRarity, type Rarity } from './rarity'
 import { SPECTRUM_GLSL, UNEVEN_GLSL } from './tearLine'
 
@@ -8,12 +9,6 @@ import { SPECTRUM_GLSL, UNEVEN_GLSL } from './tearLine'
  * side, so it is drawn on the same 26-unit sheet the charge's shadow uses.
  */
 const SIZE = 26
-
-/** How long the light takes to cross the frame. */
-const FLOOD_SECONDS = 0.75
-
-/** It leaves the crack fast and arrives slowly, like a wave losing its push. */
-const FLOOD_SHARPNESS = 2.0
 
 /**
  * Where the front starts and ends, measured through the squeezed frame the
@@ -25,8 +20,18 @@ const FLOOD_SHARPNESS = 2.0
 const FRONT_START = 0.14
 const FRONT_END = 7.6
 
-/** How long the white of the crack outlasts the strike, in seconds. */
-const STRIKE_SECONDS = 0.16
+/**
+ * How much white the leading band is mixed toward. The band is the light arriving, so
+ * it has to still be the rarity's colour: the tear has to pick up the colour the seam
+ * wore a moment before, or the two shots do not join.
+ */
+const BAND_PALE = 0.25
+
+/**
+ * How much white the crack line itself is mixed toward. Small like the band's: the
+ * hairline is brighter than the seam it replaces, but it is still the seam's colour.
+ */
+const CRACK_PALE = 0.3
 
 /**
  * The prism's fringe around the front: where it sits in multiples of the front's
@@ -48,13 +53,17 @@ export type TearBurst = {
   object: THREE.Mesh
   /**
    * The light that leaves the crack once the paper gives way. It starts with
-   * `torn` and stops when the paper is whole again, and it runs on `dt` rather
-   * than on the scene clock, so a script that freezes the clock still gets a
-   * flooded frame instead of a half-open one.
+   * `torn` and stops when the paper is whole again. When it happens is the
+   * timeline's; this only draws it.
    */
-  update(state: { x: number; y: number; torn: boolean; dt: number; rarity: Rarity }): void
-  /** Pins how far into the flood a script wants the frame, or lets it run again. */
-  holdAt(seconds: number | null): void
+  update(state: {
+    x: number
+    y: number
+    torn: boolean
+    beat: TearBeat
+    dt: number
+    rarity: Rarity
+  }): void
 }
 
 /**
@@ -64,8 +73,12 @@ export type TearBurst = {
  * has to continue the seam rather than appear beside it: white where the paper
  * broke, the rarity's own colour further out, and an uneven front that runs with
  * the crack — long along it, short across it — before settling into a wash that
- * holds the frame. The bloom pass turns whatever runs past white into a halo, so
- * the front is pushed well past it.
+ * takes the whole frame in that colour. The bloom pass turns whatever runs past
+ * white into a halo, so the front is pushed well past it.
+ *
+ * The white follows the colour rather than replacing it: as the frame fills in the
+ * rarity's colour, that colour is what bleaches, and the white it leaves hands the
+ * screen over to whatever comes next.
  */
 export function createTearBurst(): TearBurst {
   const uniforms = {
@@ -103,38 +116,22 @@ export function createTearBurst(): TearBurst {
   object.position.z = 0.02
   object.visible = false
 
-  /** Seconds since the tear, and the age a script has pinned, if any. */
-  let age = 0
-  let heldAge: number | null = null
-
   return {
     object,
 
-    holdAt(seconds) {
-      heldAge = seconds
-    },
-
-    update({ x, y, torn, dt, rarity }) {
+    update({ x, y, torn, beat, dt, rarity }) {
       object.visible = torn && effects.burst
-      if (!torn) {
-        age = 0
-        return
-      }
+      if (!torn) return
 
-      age = heldAge ?? age + dt
       uniforms.uTime.value += dt
-
-      const progress = clamp01(age / FLOOD_SECONDS)
-      const eased = 1 - (1 - progress) ** FLOOD_SHARPNESS
-
-      uniforms.uFront.value = FRONT_START + eased * (FRONT_END - FRONT_START)
-      uniforms.uWash.value = eased
-      uniforms.uStrike.value = clamp01(1 - age / STRIKE_SECONDS)
+      uniforms.uFront.value = FRONT_START + beat.flood * (FRONT_END - FRONT_START)
+      uniforms.uWash.value = beat.flood
+      uniforms.uStrike.value = beat.strike
 
       const look = findRarity(rarity)
       uniforms.uSpectrum.value = effects.prism ? look.spectrum : 0
       uniforms.uCore.value.copy(look.core)
-      uniforms.uGlow.value.copy(look.glow)
+      uniforms.uGlow.value.copy(look.light)
 
       object.position.x = x
       object.position.y = y
@@ -192,7 +189,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     float filled = 1.0 - smoothstep(front - 0.6, front, reach);
     float settle = 0.35 + 0.7 * uWash;
 
-    // The crack itself, white and thin, outliving the seam by a heartbeat.
+    // The crack itself, kept a thin hot line outliving the seam by a heartbeat. It is
+    // the seam's own colour, only hotter: the tear has to look like the strain that
+    // was there a frame ago, or the two shots cut rather than join.
     float crack = exp(-pow(vLocal.y / 0.05, 2.0)) * (1.0 - smoothstep(0.0, 1.6, abs(vLocal.x)));
 
     // Slow unevenness across the flooded frame, so the wash has some structure
@@ -200,9 +199,11 @@ const FRAGMENT_SHADER = /* glsl */ `
     float body = 0.88 + 0.24 * uneven(angle * 1.1 + 3.0);
     float nearCrack = 0.7 + 0.3 * (1.0 - smoothstep(0.0, 2.2, reach));
 
-    // The corners are held back, so the frame ends flooded rather than blank:
-    // there is still a picture in there to hand over to the next act.
-    float corners = 1.0 - 0.45 * smoothstep(0.55, 1.6, length(vLocal));
+    // The corners are held back while the front is still on its way, so the frame
+    // ends flooded rather than blank. Once it lands they come in too: the ground
+    // the white closes over has to be one colour, or the white would be erasing a
+    // picture instead of continuing the light.
+    float corners = 1.0 - 0.45 * smoothstep(0.55, 1.6, length(vLocal)) * (1.0 - uWash);
 
     // The prism is a second ring rather than a repaint of the first, and it rings
     // the outside of the front, ordered outwards the way a real prism orders
@@ -213,9 +214,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     float hue = (beyond - ${FRINGE_START.toFixed(2)}) * ${SPECTRUM_CYCLES.toFixed(2)} + uTime * ${SPECTRUM_DRIFT.toFixed(2)};
 
     vec3 light = uGlow * filled * settle * body * nearCrack
-               + mix(uGlow, vec3(1.0), 0.75) * band * 1.8
+               + mix(uGlow, vec3(1.0), ${BAND_PALE.toFixed(2)}) * band * 1.8
                + hueToLight(hue) * fringe * ${SPECTRUM_GAIN.toFixed(2)} * uSpectrum
-               + vec3(1.0) * crack * 2.5 * uStrike;
+               + mix(uGlow, vec3(1.0), ${CRACK_PALE.toFixed(2)}) * crack * 2.5 * uStrike;
 
     gl_FragColor = vec4(light * corners, 0.0);
 
@@ -223,7 +224,3 @@ const FRAGMENT_SHADER = /* glsl */ `
     #include <colorspace_fragment>
   }
 `
-
-function clamp01(value: number): number {
-  return Math.min(1, Math.max(0, value))
-}

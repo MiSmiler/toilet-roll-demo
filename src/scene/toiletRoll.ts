@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { effects, PAPER, params } from '../params'
 import { createRollTexture, createSheetTexture } from './paperTextures'
 import { createTearBurst } from './tearBurst'
+import type { TearBeat } from '../tear/timeline'
 import { createTearLine } from './tearLine'
 import type { Rarity } from './rarity'
 
@@ -39,6 +40,8 @@ export type PaperState = {
   time: number
   /** Real seconds since the last frame, for transitions that ignore the clock. */
   dt: number
+  /** The tear's choreography, which sets the drop and the flood's progress. */
+  beat: TearBeat
 }
 
 /** Which parts of the prop are drawn. A debug run switches them one at a time. */
@@ -55,8 +58,6 @@ export type ToiletRoll = {
   parts(): PaperParts
   /** World box the prop can occupy now; generous on purpose, see the call site. */
   bounds(): THREE.Box3
-  /** Pins how far into the tear's flood a script wants the frame, or lets it run. */
-  holdBurst(seconds: number | null): void
 }
 
 /**
@@ -155,8 +156,8 @@ export function createToiletRoll(): ToiletRoll {
   let drawnLength = params.segmentLength
   /** How much paper hangs above the ten counted segments, kept for show(). */
   let tailLength = 0
-  /** Scene time when the tear started, null while the paper is whole. */
-  let tornAt: number | null = null
+  /** True once the paper has given way, kept so bounds() can answer without arguments. */
+  let torn = false
 
   return {
     object,
@@ -170,14 +171,12 @@ export function createToiletRoll(): ToiletRoll {
 
     parts: () => ({ ...enabled }),
 
-    holdBurst: (seconds) => burst.holdAt(seconds),
-
     bounds() {
       // Wide enough for the sheet's sway, tremble and swing, deep enough for the
       // dropped piece and the roll's curve behind the sheet.
       const margin = params.shake * 3
-      const drop = tornAt === null ? 0 : params.tearDrop
-      const swingReach = tornAt === null ? 0 : params.tearSwing * drawnLength
+      const drop = torn ? params.tearDrop : 0
+      const swingReach = torn ? params.tearSwing * drawnLength : 0
       const halfWidth = PAPER.width / 2 + params.sway + margin + swingReach
       return new THREE.Box3(
         new THREE.Vector3(-halfWidth, PAPER.rollCenterY - drawnLength - margin - drop, -PAPER.rollRadius),
@@ -185,7 +184,10 @@ export function createToiletRoll(): ToiletRoll {
       )
     },
 
-    setPaper({ length, sway, strain, torn, rarity, time, dt }) {
+    setPaper({ length, sway, strain, torn: isTorn, rarity, time, dt, beat }) {
+      // Kept for bounds(), which answers without arguments.
+      torn = isTorn
+
       // One segment always hangs below the last counted one, so the tear line
       // never sits on the paper's own edge.
       const renderLength = length + params.segmentLength
@@ -213,20 +215,13 @@ export function createToiletRoll(): ToiletRoll {
 
       spinner.rotation.x = length / PAPER.rollRadius + tremor(time, 67, 0.9) * 0.015 * effort
 
-      if (torn) {
-        tornAt ??= time
-      } else {
-        tornAt = null
-      }
-      const tearProgress = tornAt === null ? 0 : clamp01((time - tornAt) / params.impactSeconds)
-
       // The body pivots at the torn edge. Before the tear it sits exactly under
-      // the tail; after, it snaps away and holds.
-      const tearEase = easeOutSnap(tearProgress)
+      // the tail; after, it snaps away and holds. How far it has gone is the
+      // timeline's, how far it can go is the prop's.
       const drop = effects.tearFall ? params.tearDrop : 0
       const swing = effects.tearFall ? params.tearSwing : 0
-      bodyGroup.position.y = bodyTopY - drop * tearEase
-      bodyGroup.rotation.z = swing * tearEase
+      bodyGroup.position.y = bodyTopY - drop * beat.fall
+      bodyGroup.rotation.z = swing * beat.fall
 
       const jag = params.tearJag * clamp01(tailLength / JAG_RAMP)
 
@@ -257,7 +252,7 @@ export function createToiletRoll(): ToiletRoll {
 
       // The crack keeps its place while the piece drops away, so the flood
       // leaves from where the paper actually broke.
-      burst.update({ x: seamX, y: bodyTopY, torn, dt, rarity })
+      burst.update({ x: seamX, y: bodyTopY, torn, beat, dt, rarity })
 
       // The UVs are in segment units, so one texture tile always covers one
       // segment and the perforations continue across the torn seam.
@@ -426,9 +421,4 @@ function driftAt(alongStrip: number, sway: number, time: number): number {
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
-}
-
-/** A rip leaves immediately and settles: fast at the start, calm at the end. */
-function easeOutSnap(t: number): number {
-  return 1 - (1 - t) ** 3
 }
