@@ -15,7 +15,7 @@ const CAMERA_X = 1.05
  * only the cut's own light — which is deliberately pushed past white — spills
  * over into a halo.
  */
-const BLOOM_THRESHOLD = 1.0
+const BLOOM_THRESHOLD = 1.8
 
 /** How much of that spilled light is added back over the frame. */
 const BLOOM_STRENGTH = 0.55
